@@ -16,7 +16,7 @@ import {
   relationshipLabel,
   resolveChoice,
   schoolSnapshot,
-} from "./game/engine.js?v=20";
+} from "./game/engine.js?v=21";
 import {
   advanceRealism,
   deathSummary,
@@ -24,8 +24,9 @@ import {
   getAroundYou,
   getBirthdayRecap,
   healthSnapshot,
-} from "./game/realism.js?v=20";
-import { contextualEventForState, resolveContextualChoice } from "./game/contextual-events.js?v=20";
+} from "./game/realism.js?v=21";
+import { contextualEventForState, resolveContextualChoice } from "./game/contextual-events.js?v=21";
+import { syncHouseholdMembership } from "./game/household-membership.js?v=21";
 
 const STORAGE_KEY = "little-days-save-v2";
 
@@ -39,7 +40,7 @@ function loadState() {
   return createNewLife();
 }
 
-let state = ensureRealismState(loadState());
+let state = syncHouseholdMembership(ensureRealismState(loadState()));
 let toastTimer;
 let initialized = false;
 
@@ -335,26 +336,27 @@ const screens={life:lifeScreen,people:peopleScreen,"family-tree":familyTreeScree
 
 function render(){
   ensureRealismState(state);
+  syncHouseholdMembership(state);
   const route=getRoute();
   const screen=route.startsWith("person/") ? ()=>personProfileScreen(decodeURIComponent(route.slice(7))) : (screens[route]||screens.life);
   document.querySelector("#app").innerHTML=screen();
   bindEvents();
 }
 
-function startNewLife(){if(!window.confirm("Begin a different life? Your current childhood will be replaced."))return;state=ensureRealismState(createNewLife());saveState();location.hash="life";render();showToast(`A new life begins. Meet ${state.character.firstName}.`)}
+function startNewLife(){if(!window.confirm("Begin a different life? Your current childhood will be replaced."))return;state=syncHouseholdMembership(ensureRealismState(createNewLife()));saveState();location.hash="life";render();showToast(`A new life begins. Meet ${state.character.firstName}.`)}
 
 function bindEvents(){
   document.querySelectorAll("[data-route]").forEach(button=>button.addEventListener("click",()=>{const route=button.dataset.route;if(route!==getRoute())location.hash=route}));
   document.querySelectorAll("[data-person-id]").forEach(button=>button.addEventListener("click",()=>{location.hash=`person/${encodeURIComponent(button.dataset.personId)}`}));
   document.querySelectorAll("[data-context-choice]").forEach(button=>button.addEventListener("click",()=>{resolveContextualChoice(state,button.dataset.contextChoice);saveState();render();showToast("Choice remembered.")}));
   document.querySelectorAll("[data-choice]").forEach(button=>button.addEventListener("click",()=>{resolveChoice(state,button.dataset.choice);saveState();render();showToast("Choice remembered.")}));
-  document.querySelector("#continue-life")?.addEventListener("click",()=>{const before=state.character.ageMonths;continueLife(state);const elapsed=Math.max(0,state.character.ageMonths-before);advanceRealism(state,elapsed,before);saveState();render();window.scrollTo({top:0,behavior:"smooth"})});
+  document.querySelector("#continue-life")?.addEventListener("click",()=>{const before=state.character.ageMonths;continueLife(state);const elapsed=Math.max(0,state.character.ageMonths-before);advanceRealism(state,elapsed,before);syncHouseholdMembership(state);saveState();render();window.scrollTo({top:0,behavior:"smooth"})});
   document.querySelectorAll("[data-new-life]").forEach(button=>button.addEventListener("click",startNewLife));
 }
 
 function showToast(message){clearTimeout(toastTimer);document.querySelector(".toast")?.remove();const toast=document.createElement("div");toast.className="toast";toast.setAttribute("role","status");toast.textContent=message;document.body.appendChild(toast);toastTimer=setTimeout(()=>toast.remove(),2200)}
 
-export function initializeApp(){ensureRealismState(state);if(initialized){render();return}initialized=true;saveState();render();if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.getRegistrations().then(registrations=>registrations.forEach(registration=>registration.unregister())).catch(()=>{})}}
+export function initializeApp(){ensureRealismState(state);syncHouseholdMembership(state);if(initialized){render();return}initialized=true;saveState();render();if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.getRegistrations().then(registrations=>registrations.forEach(registration=>registration.unregister())).catch(()=>{})}}
 
 window.addEventListener("hashchange",render);
 if(document.readyState==="loading")window.addEventListener("DOMContentLoaded",initializeApp,{once:true});else initializeApp();
