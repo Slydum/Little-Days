@@ -44,6 +44,7 @@ jobs:
           node --check game/relationship-continuity.js
           node --check game/school-coherence.js
           node --check game/childhood-depth.js
+          node --check game/childhood-depth-v2.js
           node --check game/childhood-depth-loader.js
           node --check game/family-enhancer.js
           node --check game/life-enhancer.js
