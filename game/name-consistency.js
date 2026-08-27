@@ -85,6 +85,21 @@
     return life;
   }
 
+  function readLife(){
+    try{return JSON.parse(localStorage.getItem(KEY));}
+    catch(e){return null;}
+  }
+
+  function syncBirthIntro(){
+    var intro=document.querySelector(".birth-intro");
+    if(!intro)return;
+    var life=readLife();
+    if(!life||!life.character)return;
+    var copies=intro.querySelectorAll(".birth-copy");
+    if(copies[0])copies[0].innerHTML="Your name is <strong>"+life.character.firstName+" "+life.character.lastName+"</strong>. You were born in "+life.character.birthplace+".";
+    if(copies[2]&&life.family)copies[2].textContent=(life.family.siblingSummary||"")+" "+(life.family.extendedSummary||"");
+  }
+
   Storage.prototype.setItem=function(key,value){
     if(this===localStorage&&key===KEY){
       try{
@@ -92,13 +107,18 @@
         value=JSON.stringify(normalizeLife(life));
       }catch(e){}
     }
-    return originalSetItem.call(this,key,value);
+    var result=originalSetItem.call(this,key,value);
+    if(this===localStorage&&key===KEY)setTimeout(syncBirthIntro,0);
+    return result;
   };
 
   try{
-    var existing=JSON.parse(localStorage.getItem(KEY));
+    var existing=readLife();
     if(existing&&existing.version===2&&existing.character&&existing.character.ageMonths<12){
       originalSetItem.call(localStorage,KEY,JSON.stringify(normalizeLife(existing)));
     }
   }catch(e){}
+
+  var app=document.querySelector("#app");
+  if(app)new MutationObserver(function(){setTimeout(syncBirthIntro,0)}).observe(app,{childList:true,subtree:true});
 })();
