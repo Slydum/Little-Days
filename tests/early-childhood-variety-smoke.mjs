@@ -5,7 +5,7 @@ import {
   createNewLife,
   getCurrentEvent,
   resolveChoice,
-} from "../game/engine-v27.js";
+} from "../game/engine-v28.js";
 
 const earlyIds = new Set(EARLY_EVENTS.map((event) => event.id));
 const openings = new Set();
@@ -28,7 +28,7 @@ while ((life.character?.ageMonths || 0) < 60) {
   seen.push(event.id);
   assert.ok(event.choices.length >= 2, `${event.id} should provide meaningful choice variety`);
   resolveChoice(life, event.choices[0].id);
-  const resolvedEarlyId = life.resolution?.earlyEventId || life.resolution?.newbornExtraEventId;
+  const resolvedEarlyId = life.resolution?.earlyEventId || life.resolution?.newbornExtraEventId || life.resolution?.lateToddlerEventId;
   assert.equal(resolvedEarlyId, event.id, `${event.id} should resolve as a real early event`);
   continueLife(life);
 }
