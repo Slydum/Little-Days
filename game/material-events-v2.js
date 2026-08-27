@@ -15,5 +15,10 @@ export function commitMaterialEvent(state, event, choice) {
   if (event?.materialType === "worn" && choice?.id === "popular" && event.premium?.kind !== "new") {
     return core.commitMaterialEvent(state, event, { ...choice, id: "replace" });
   }
-  return core.commitMaterialEvent(state, event, choice);
+  const next = core.commitMaterialEvent(state, event, choice);
+  if (event?.materialType === "goal" && choice?.id === "buy" && event.itemId) {
+    const bought = [...(next.material?.possessions || [])].reverse().find((item) => item.active !== false && item.label?.startsWith("saved-for "));
+    if (bought) bought.source = `trend:${event.itemId}:saved`;
+  }
+  return next;
 }
