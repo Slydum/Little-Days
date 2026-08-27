@@ -1,4 +1,5 @@
 const STORAGE_KEY = "little-days-save-v2";
+const META_KEY = "little-days-enhancer-meta-v1";
 const HONORIFICS = new Set(["Lola", "Lolo", "Auntie", "Uncle", "Tita", "Tito"]);
 
 const ITEM_CATALOG = [
@@ -32,6 +33,18 @@ function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function readMeta(state) {
+  try {
+    const meta = JSON.parse(localStorage.getItem(META_KEY));
+    if (meta?.seed === state.seed) return meta;
+  } catch {}
+  return { seed: state.seed, ageMonths: state.character?.ageMonths || 0 };
+}
+
+function writeMeta(state, ageMonths) {
+  localStorage.setItem(META_KEY, JSON.stringify({ seed: state.seed, ageMonths }));
+}
+
 function clamp(value, min = 0, max = 100) {
   return Math.max(min, Math.min(max, value));
 }
@@ -56,7 +69,6 @@ function dramaRandom(state) {
 function ensureState(state) {
   const seed = ((Number(state.seed) || 1) ^ 0x4f1bbcdc) >>> 0;
   state.lifeEnhancer ||= { version: 1, lastProcessedAgeMonths: state.character?.ageMonths || 0, dramaRngState: seed || 1 };
-  state.lifeEnhancer.lastProcessedAgeMonths ??= state.character?.ageMonths || 0;
   state.lifeEnhancer.dramaRngState ||= seed || 1;
   state.possessions ||= { items: [], giftsReceived: 0, giftsGiven: 0, practiceHistory: [] };
   state.possessions.items ||= [];
@@ -371,13 +383,15 @@ function processWorld(state) {
   changed = repairNames(state) || changed;
   changed = ensureStarterPossessions(state) || changed;
   const current = state.character?.ageMonths || 0;
-  const before = state.lifeEnhancer.lastProcessedAgeMonths ?? current;
+  const meta = readMeta(state);
+  const before = Math.min(current, meta.ageMonths ?? current);
   const elapsed = Math.max(0, current - before);
   if (elapsed > 0) {
     changed = processGifts(state, before, elapsed) || changed;
     changed = processRelationshipDrama(state, elapsed) || changed;
-    state.lifeEnhancer.lastProcessedAgeMonths = current;
-    changed = true;
+    writeMeta(state, current);
+  } else if (meta.ageMonths !== current) {
+    writeMeta(state, current);
   }
   return changed;
 }

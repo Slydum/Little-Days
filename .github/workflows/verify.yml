@@ -24,6 +24,8 @@ jobs:
           node --check game/household-membership.js
           node --check game/childhood-v2.js
           node --check game/childhood-v2-resolve.js
+          node --check game/family-enhancer.js
+          node --check game/life-enhancer.js
           node --check tests/realism-smoke.mjs
           node --check tests/contextual-events-smoke.mjs
           node --check tests/household-membership-smoke.mjs
