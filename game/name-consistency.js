@@ -81,7 +81,7 @@
     }
 
     (life.people||[]).forEach(function(person){normalizePersonName(life,person,used)});
-    life.nameConsistencyVersion=1;
+    life.nameConsistencyVersion=2;
     return life;
   }
 
@@ -96,8 +96,10 @@
     var life=readLife();
     if(!life||!life.character)return;
     var copies=intro.querySelectorAll(".birth-copy");
-    if(copies[0])copies[0].innerHTML="Your name is <strong>"+life.character.firstName+" "+life.character.lastName+"</strong>. You were born in "+life.character.birthplace+".";
-    if(copies[2]&&life.family)copies[2].textContent=(life.family.siblingSummary||"")+" "+(life.family.extendedSummary||"");
+    var nameHtml="Your name is <strong>"+life.character.firstName+" "+life.character.lastName+"</strong>. You were born in "+life.character.birthplace+".";
+    if(copies[0]&&copies[0].innerHTML!==nameHtml)copies[0].innerHTML=nameHtml;
+    var familyText=life.family?(life.family.siblingSummary||"")+" "+(life.family.extendedSummary||""):"";
+    if(copies[2]&&copies[2].textContent!==familyText)copies[2].textContent=familyText;
   }
 
   Storage.prototype.setItem=function(key,value){
@@ -118,7 +120,4 @@
       originalSetItem.call(localStorage,KEY,JSON.stringify(normalizeLife(existing)));
     }
   }catch(e){}
-
-  var app=document.querySelector("#app");
-  if(app)new MutationObserver(function(){setTimeout(syncBirthIntro,0)}).observe(app,{childList:true,subtree:true});
 })();
