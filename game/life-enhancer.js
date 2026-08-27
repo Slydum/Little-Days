@@ -36,9 +36,9 @@ function saveState(state) {
 function readMeta(state) {
   try {
     const meta = JSON.parse(localStorage.getItem(META_KEY));
-    if (meta?.seed === state.seed) return meta;
+    if (meta?.seed === state.seed) return { ...meta, missing: false };
   } catch {}
-  return { seed: state.seed, ageMonths: state.character?.ageMonths || 0 };
+  return { seed: state.seed, ageMonths: state.character?.ageMonths || 0, missing: true };
 }
 
 function writeMeta(state, ageMonths) {
@@ -386,11 +386,12 @@ function processWorld(state) {
   const meta = readMeta(state);
   const before = Math.min(current, meta.ageMonths ?? current);
   const elapsed = Math.max(0, current - before);
+  if (meta.missing) writeMeta(state, current);
   if (elapsed > 0) {
     changed = processGifts(state, before, elapsed) || changed;
     changed = processRelationshipDrama(state, elapsed) || changed;
     writeMeta(state, current);
-  } else if (meta.ageMonths !== current) {
+  } else if (!meta.missing && meta.ageMonths !== current) {
     writeMeta(state, current);
   }
   return changed;
