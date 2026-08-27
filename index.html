@@ -1,381 +1,66 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#f7f2e8" />
-    <meta name="description" content="Little Days — a quiet, story-first life simulation." />
-    <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=10" />
-    <link rel="stylesheet" href="./setup.css?v=10" />
-    <title>Little Days</title>
-  </head>
-  <body>
-    <main id="app" class="app-shell" aria-live="polite">
-      <section class="setup-screen">
-        <div class="setup-header">
-          <p class="brand">Little Days</p>
-          <h1>Begin a life</h1>
-          <p>Every life starts with things you choose and things you don't.</p>
-        </div>
-        <div class="setup-options">
-          <button class="setup-option" type="button" onclick="LittleDaysStart.random()">
-            <strong>Random life</strong>
-            <span>Let everything be generated, including your character.</span>
-          </button>
-          <button class="setup-option" type="button" onclick="LittleDaysStart.custom()">
-            <strong>Custom character</strong>
-            <span>Choose your character's identity. Their family, money, home, birthplace, temperament, and circumstances are still generated.</span>
-          </button>
-        </div>
-        <p class="setup-footnote">You can choose the person. You cannot choose the life waiting for them.</p>
-      </section>
-    </main>
-
-    <noscript><div style="padding:20px;text-align:center">Little Days needs JavaScript enabled to begin a life.</div></noscript>
-
-    <script>
-    (function () {
-      "use strict";
-
-      var STORAGE_KEY = "little-days-save-v2";
-      var FIRST_NAMES = ["Mara", "Elio", "Sofia", "Nico", "Lia", "Tomas", "Iris", "Paolo", "Mina", "Theo"];
-      var LAST_NAMES = ["Reyes", "Santos", "Garcia", "Navarro", "Cruz", "Mendoza", "Flores", "Ramos"];
-      var GUARDIAN_NAMES = ["Ana", "Elena", "Maria", "Grace", "Paolo", "Daniel", "Luis", "Marco"];
-      var FRIEND_NAMES = ["Maya", "Liam", "Zoe", "Nina", "Eli", "Sam", "Noah", "Aya"];
-      var SIBLING_NAMES = ["Leo", "Mika", "Nina", "Gab", "Tala", "Enzo"];
-      var GRANDMOTHER_NAMES = ["Lola Cora", "Lola Tess", "Lola Nena", "Lola Mila"];
-      var PLACES = [
-        { city: "Quezon City", country: "Philippines", neighborhood: "Busy", housing: "Small two-bedroom house" },
-        { city: "Imus", country: "Philippines", neighborhood: "Growing", housing: "Modest townhouse" },
-        { city: "Iloilo City", country: "Philippines", neighborhood: "Quiet", housing: "Two-bedroom apartment" },
-        { city: "Cebu City", country: "Philippines", neighborhood: "Busy", housing: "Compact apartment" },
-        { city: "Davao City", country: "Philippines", neighborhood: "Residential", housing: "Small family house" }
-      ];
-
-      function clamp(value, min, max) {
-        min = typeof min === "number" ? min : 0;
-        max = typeof max === "number" ? max : 100;
-        return Math.max(min, Math.min(max, value));
-      }
-
-      function makeRng(seed) {
-        var value = seed >>> 0;
-        return function () {
-          value = (value * 1664525 + 1013904223) >>> 0;
-          return value / 4294967296;
-        };
-      }
-
-      function pick(rng, list) { return list[Math.floor(rng() * list.length)]; }
-      function between(rng, min, max) { return Math.round(min + rng() * (max - min)); }
-
-      function npcState(rng, role) {
-        var adult = role === "guardian" || role === "secondGuardian";
-        return {
-          outsideStress: adult ? between(rng, 28, 48) : between(rng, 18, 38),
-          availability: between(rng, 58, 82),
-          socialWorld: role === "friend" ? between(rng, 42, 64) : between(rng, 28, 52),
-          currentThread: "",
-          lastChangedAtMonths: 0
-        };
-      }
-
-      function relationship(rng, role, name, age, introducedAtMonths) {
-        introducedAtMonths = introducedAtMonths || 0;
-        return {
-          id: role + "-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-          role: role,
-          name: name,
-          age: age,
-          introducedAtMonths: introducedAtMonths,
-          closeness: between(rng, 48, 72),
-          trust: between(rng, 48, 72),
-          affection: between(rng, 55, 78),
-          conflict: between(rng, 5, 20),
-          familiarity: between(rng, 50, 72),
-          lastInteractionAtMonths: introducedAtMonths,
-          history: [],
-          npc: npcState(rng, role)
-        };
-      }
-
-      function createLife() {
-        var seed = (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0;
-        var rng = makeRng(seed || 1);
-        var firstName = pick(rng, FIRST_NAMES);
-        var lastName = pick(rng, LAST_NAMES);
-        var place = pick(rng, PLACES);
-        var guardianName = pick(rng, GUARDIAN_NAMES) + " " + lastName;
-        var secondGuardianName = pick(rng, GUARDIAN_NAMES) + " " + lastName;
-        var friendName = pick(rng, FRIEND_NAMES) + " " + pick(rng, LAST_NAMES);
-        var siblingName = pick(rng, SIBLING_NAMES) + " " + lastName;
-        var grandmotherName = pick(rng, GRANDMOTHER_NAMES);
-        var hasSibling = rng() > 0.42;
-        var hasGrandmother = rng() > 0.2;
-        var twoGuardians = rng() > 0.28;
-        var financeRoll = rng();
-        var financeBand = financeRoll < 0.28 ? "Tight" : (financeRoll < 0.76 ? "Getting by" : "Comfortable");
-        var birthMonth = between(rng, 0, 11);
-        var personality = {
-          social: between(rng, 38, 62),
-          risk: between(rng, 38, 62),
-          structure: between(rng, 38, 62),
-          sensitivity: between(rng, 38, 62),
-          curiosity: between(rng, 42, 68),
-          independence: between(rng, 35, 58)
-        };
-        var people = [
-          relationship(rng, "guardian", guardianName, between(rng, 24, 36), 0),
-          relationship(rng, "friend", friendName, 0, 60),
-          relationship(rng, "teacher", pick(rng, ["Ms. Santos", "Mr. Lim", "Ms. Rivera", "Mr. Cruz"]), between(rng, 27, 49), 60)
-        ];
-        if (twoGuardians) people.push(relationship(rng, "secondGuardian", secondGuardianName, between(rng, 25, 39), 0));
-        if (hasSibling) people.push(relationship(rng, "sibling", siblingName, between(rng, 2, 5), 0));
-        if (hasGrandmother) people.push(relationship(rng, "grandmother", grandmotherName, between(rng, 52, 69), 0));
-
-        return {
-          version: 2,
-          seed: seed || 1,
-          rngState: (seed || 1) ^ 0x9e3779b9,
-          character: {
-            firstName: firstName,
-            lastName: lastName,
-            sex: rng() > 0.5 ? "Female" : "Male",
-            birthplace: place.city + ", " + place.country,
-            ageMonths: 0,
-            birthYear: 2026,
-            birthMonth: birthMonth,
-            personality: personality,
-            development: {
-              attachment: between(rng, 52, 68),
-              confidence: clamp(Math.round(44 + (personality.risk - 50) * 0.25 + (personality.social - 50) * 0.15 + between(rng, -5, 5))),
-              emotionalRegulation: clamp(Math.round(56 - (personality.sensitivity - 50) * 0.2 + between(rng, -5, 5))),
-              autonomy: clamp(Math.round(42 + (personality.independence - 50) * 0.3 + between(rng, -4, 4))),
-              socialComfort: clamp(Math.round(46 + (personality.social - 50) * 0.35 + between(rng, -4, 4))),
-              persistence: clamp(Math.round(48 + (personality.structure - 50) * 0.3 + between(rng, -4, 4)))
-            },
-            patterns: { connecting: 0, exploring: 0, creating: 0, persisting: 0, selfReliance: 0 }
-          },
-          date: { year: 2026, month: birthMonth, day: between(rng, 3, 25) },
-          household: {
-            name: "The " + lastName + " Family Home",
-            housing: place.housing,
-            city: place.city,
-            country: place.country,
-            neighborhood: place.neighborhood,
-            financeBand: financeBand,
-            privacy: twoGuardians && hasSibling ? "Limited" : "Moderate",
-            comfort: financeBand === "Comfortable" ? "Comfortable" : (financeBand === "Tight" ? "Basic" : "Modest"),
-            savings: financeBand === "Comfortable" ? between(rng, 30000, 90000) : (financeBand === "Tight" ? between(rng, 0, 5000) : between(rng, 6000, 25000))
-          },
-          health: { wellbeing: between(rng, 64, 82), energy: between(rng, 62, 82), stress: between(rng, 12, 28) },
-          interests: {
-            drawing: between(rng, 15, 30), reading: between(rng, 15, 30), gardening: between(rng, 10, 24),
-            cooking: between(rng, 10, 24), gaming: between(rng, 10, 24), music: between(rng, 10, 24), making: between(rng, 15, 30)
-          },
-          education: { subjects: {
-            mathematics: between(rng, 42, 62), language: between(rng, 42, 62), science: between(rng, 42, 62),
-            art: between(rng, 42, 62), physicalEducation: between(rng, 42, 62)
-          }},
-          money: { savings: 0 },
-          people: people,
-          memories: [], history: [], worldEvents: [], recentEventIds: [],
-          currentEventId: "held_after_crying",
-          resolution: null,
-          completed: false
-        };
-      }
-
-      function save(life) { localStorage.setItem(STORAGE_KEY, JSON.stringify(life)); }
-      function read() {
-        try {
-          var value = JSON.parse(localStorage.getItem(STORAGE_KEY));
-          if (value && value.version === 2 && value.character && value.household) return value;
-        } catch (error) {}
-        return null;
-      }
-
-      function cleanName(value, fallback) {
-        var cleaned = String(value || "").trim().replace(/[^A-Za-zÀ-ÖØ-öø-ÿ' -]/g, "").replace(/\s+/g, " ").slice(0, 28);
-        return cleaned || fallback || "";
-      }
-
-      function replaceSurname(name, surname) {
-        var parts = String(name || "").trim().split(/\s+/);
-        if (!parts.length) return surname;
-        parts[parts.length - 1] = surname;
-        return parts.join(" ");
-      }
-
-      function applyCustom(life, data) {
-        var firstName = cleanName(data.firstName, life.character.firstName);
-        var lastName = cleanName(data.lastName, life.character.lastName);
-        life.character.firstName = firstName;
-        life.character.lastName = lastName;
-        life.character.sex = data.sex || life.character.sex;
-        life.household.name = "The " + lastName + " Family Home";
-        for (var i = 0; i < life.people.length; i += 1) {
-          var person = life.people[i];
-          if (person.role === "guardian" || person.role === "secondGuardian" || person.role === "sibling") person.name = replaceSurname(person.name, lastName);
-        }
-        return life;
-      }
-
-      function shell(html) { document.getElementById("app").innerHTML = '<section class="setup-screen">' + html + '</section>'; }
-
-      function showError(message) {
-        shell('<div class="setup-header"><p class="brand">Little Days</p><h1>Something didn\'t load.</h1><p>' + message + '</p></div><button class="setup-primary" type="button" onclick="location.reload()">Reload</button>');
-      }
-
-      function showChoice() {
-        shell('<div class="setup-header"><p class="brand">Little Days</p><h1>Begin a life</h1><p>Every life starts with things you choose and things you don\'t.</p></div>' +
-          '<div class="setup-options"><button class="setup-option" type="button" onclick="LittleDaysStart.random()"><strong>Random life</strong><span>Let everything be generated, including your character.</span></button>' +
-          '<button class="setup-option" type="button" onclick="LittleDaysStart.custom()"><strong>Custom character</strong><span>Choose your character\'s identity. Their family, money, home, birthplace, temperament, and circumstances are still generated.</span></button></div>' +
-          '<p class="setup-footnote">You can choose the person. You cannot choose the life waiting for them.</p>');
-      }
-
-      function showCustom() {
-        shell('<div class="setup-header compact"><p class="brand">Little Days</p><h1>Create your character</h1><p>You choose who the character is. You do not choose the world they are born into.</p></div>' +
-          '<form class="custom-form" id="custom-character-form"><label><span>First name</span><input name="firstName" maxlength="28" required placeholder="First name"></label>' +
-          '<label><span>Last name</span><input name="lastName" maxlength="28" required placeholder="Last name"></label>' +
-          '<label><span>Identity</span><select name="sex"><option value="Female">Female</option><option value="Male">Male</option><option value="Non-binary">Non-binary</option></select></label>' +
-          '<div class="setup-note"><strong>Still generated</strong><p>Birthplace, parents or guardians, siblings, household finances, home, neighborhood, natural tendencies, abilities, health, and future opportunities.</p></div>' +
-          '<button class="setup-primary" type="submit">Create this life</button><button class="setup-secondary" type="button" onclick="LittleDaysStart.choice()">Back</button></form>');
-        var form = document.getElementById("custom-character-form");
-        form.addEventListener("submit", function (event) {
-          event.preventDefault();
-          var data = new FormData(form);
-          var first = cleanName(data.get("firstName"), "");
-          var last = cleanName(data.get("lastName"), "");
-          if (!first || !last) return;
-          begin("custom", { firstName: first, lastName: last, sex: data.get("sex") });
-        });
-      }
-
-      function formatDate(life) {
-        var months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        return months[life.date.month] + " " + life.date.day + ", " + life.date.year;
-      }
-
-      function intro(life) {
-        var guardians = [], sibling = null, grandmother = null;
-        for (var i = 0; i < life.people.length; i += 1) {
-          var person = life.people[i];
-          if (person.role === "guardian" || person.role === "secondGuardian") guardians.push(person.name);
-          if (person.role === "sibling") sibling = person;
-          if (person.role === "grandmother") grandmother = person;
-        }
-        var customLine = life.startMode === "custom" ? "You chose your character. You did not choose the circumstances waiting for them." : "You did not choose who you would be or the circumstances waiting for you.";
-        var familyCopy = guardians.length ? "Your home is shared with " + guardians.join(" and ") + "." : "Your household is already taking shape around you.";
-        if (sibling) familyCopy += " You have a sibling, " + sibling.name + ".";
-        if (grandmother) familyCopy += " " + grandmother.name + " is part of your family world too.";
-        shell('<div class="birth-intro"><p class="brand">Little Days</p><p class="birth-kicker">A new life</p><h1>You were born.</h1>' +
-          '<p class="birth-date">' + formatDate(life) + '</p><div class="birth-rule"></div>' +
-          '<p class="birth-copy">Your name is <strong>' + life.character.firstName + ' ' + life.character.lastName + '</strong>. You were born in ' + life.character.birthplace + '.</p>' +
-          '<p class="birth-copy">You begin life in a ' + life.household.housing.toLowerCase() + ' in ' + life.household.city + '. ' + familyCopy + '</p>' +
-          '<p class="birth-copy">Money in the household is <strong>' + life.household.financeBand.toLowerCase() + '</strong>. The neighborhood is ' + life.household.neighborhood.toLowerCase() + '.</p>' +
-          '<div class="birth-rule"></div><p class="birth-philosophy">' + customLine + '</p><p class="birth-philosophy">You will discover the rest by living.</p>' +
-          '<button class="setup-primary" type="button" onclick="LittleDaysStart.play()">Begin</button></div>');
-      }
-
-      function begin(mode, customData) {
-        try {
-          var life = createLife();
-          if (mode === "custom") life = applyCustom(life, customData || {});
-          life.startMode = mode;
-          life.introPending = true;
-          save(life);
-          intro(life);
-        } catch (error) {
-          showError("A new life could not be created. Reload the page and try again.");
-        }
-      }
-
-      function normalizeEarly(life) {
-        if (!life || life.character.ageMonths >= 36 || life.currentEventId !== "family_evening") return false;
-        life.resolution = null;
-        if (life.character.ageMonths < 12) life.currentEventId = "held_after_crying";
-        else if (life.character.ageMonths < 24) life.currentEventId = "cupboard_discovery";
-        else life.currentEventId = "playground_edge";
-        return true;
-      }
-
-      function loadGame() {
-        var life = read();
-        if (!life) { showChoice(); return; }
-        life.introPending = false;
-        normalizeEarly(life);
-        save(life);
-        shell('<div class="setup-header"><p class="brand">Little Days</p><h1>Opening your life…</h1><p>One moment.</p></div>');
-
-        var settled = false;
-        import("./app.js?v=10")
-          .then(function (game) {
-            if (game && typeof game.initializeApp === "function") game.initializeApp();
-            settled = true;
-          })
-          .catch(function (error) {
-            settled = true;
-            showError("The life was created, but the game screen could not open. Reload once to try the latest build.");
-          });
-
-        window.setTimeout(function () {
-          if (settled && document.querySelector(".screen")) return;
-          if (!document.querySelector(".screen")) {
-            showError("The game took too long to open. Your life is saved, so reloading will not erase it.");
-          }
-        }, 3500);
-      }
-
-      function closestWithAttribute(node, attribute) {
-        while (node && node !== document) {
-          if (node.getAttribute && node.hasAttribute(attribute)) return node;
-          node = node.parentNode;
-        }
-        return null;
-      }
-
-      document.addEventListener("click", function (event) {
-        var newLifeButton = closestWithAttribute(event.target, "data-new-life");
-        if (newLifeButton) {
-          event.preventDefault();
-          event.stopPropagation();
-          if (window.confirm("Begin a different life? Your current childhood will be replaced.")) {
-            localStorage.removeItem(STORAGE_KEY);
-            showChoice();
-            window.scrollTo(0, 0);
-          }
-          return;
-        }
-        var current = event.target;
-        while (current && current !== document) {
-          if (current.id === "continue-life") {
-            window.setTimeout(function () {
-              var life = read();
-              if (normalizeEarly(life)) { save(life); location.reload(); }
-            }, 10);
-            break;
-          }
-          current = current.parentNode;
-        }
-      }, true);
-
-      window.LittleDaysStart = {
-        random: function () { begin("random", null); },
-        custom: showCustom,
-        choice: showChoice,
-        play: loadGame
-      };
-
-      var existing = read();
-      if (existing) {
-        if (normalizeEarly(existing)) save(existing);
-        if (existing.introPending) intro(existing);
-        else loadGame();
-      }
-    })();
-    </script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f2e8" />
+  <meta name="description" content="Little Days — a quiet, story-first life simulation." />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./styles.css?v=11" />
+  <link rel="stylesheet" href="./setup.css?v=11" />
+  <title>Little Days</title>
+</head>
+<body>
+  <main id="app" class="app-shell" aria-live="polite"></main>
+  <noscript><div style="padding:20px;text-align:center">Little Days needs JavaScript enabled to begin a life.</div></noscript>
+<script>
+(function(){
+  "use strict";
+  var KEY="little-days-save-v2";
+  var FIRST=["Mara","Elio","Sofia","Nico","Lia","Tomas","Iris","Paolo","Mina","Theo"];
+  var LAST=["Reyes","Santos","Garcia","Navarro","Cruz","Mendoza","Flores","Ramos"];
+  var ADULT=["Ana","Elena","Maria","Grace","Paolo","Daniel","Luis","Marco"];
+  var FRIEND=["Maya","Liam","Zoe","Nina","Eli","Sam","Noah","Aya"];
+  var SIB=["Leo","Mika","Nina","Gab","Tala","Enzo"];
+  var LOLA=["Lola Cora","Lola Tess","Lola Nena","Lola Mila"];
+  var PLACES=[
+    {city:"Quezon City",country:"Philippines",neighborhood:"Busy",housing:"Small two-bedroom house"},
+    {city:"Imus",country:"Philippines",neighborhood:"Growing",housing:"Modest townhouse"},
+    {city:"Iloilo City",country:"Philippines",neighborhood:"Quiet",housing:"Two-bedroom apartment"},
+    {city:"Cebu City",country:"Philippines",neighborhood:"Busy",housing:"Compact apartment"},
+    {city:"Davao City",country:"Philippines",neighborhood:"Residential",housing:"Small family house"}
+  ];
+  function rng(seed){var v=seed>>>0;return function(){v=(v*1664525+1013904223)>>>0;return v/4294967296}}
+  function pick(r,a){return a[Math.floor(r()*a.length)]}
+  function n(r,a,b){return Math.round(a+r()*(b-a))}
+  function rel(r,role,name,age,intro){return{id:role+"-"+name.toLowerCase().replace(/[^a-z0-9]+/g,"-"),role:role,name:name,age:age,introducedAtMonths:intro||0,closeness:n(r,48,72),trust:n(r,48,72),affection:n(r,55,78),conflict:n(r,5,20),familiarity:n(r,50,72),lastInteractionAtMonths:intro||0,history:[],npc:{outsideStress:n(r,20,48),availability:n(r,58,82),socialWorld:n(r,28,64),currentThread:"",lastChangedAtMonths:0}}}
+  function makeLife(){
+    var seed=(Date.now()^Math.floor(Math.random()*0x7fffffff))>>>0,r=rng(seed||1),first=pick(r,FIRST),last=pick(r,LAST),place=pick(r,PLACES),two=r()>.28,hasSibling=r()>.42,hasGrandmother=r()>.2,financeRoll=r(),band=financeRoll<.28?"Tight":financeRoll<.76?"Getting by":"Comfortable",month=n(r,0,11);
+    var personality={social:n(r,38,62),risk:n(r,38,62),structure:n(r,38,62),sensitivity:n(r,38,62),curiosity:n(r,42,68),independence:n(r,35,58)};
+    var people=[rel(r,"guardian",pick(r,ADULT)+" "+last,n(r,24,36),0),rel(r,"friend",pick(r,FRIEND)+" "+pick(r,LAST),0,60),rel(r,"teacher",pick(r,["Ms. Santos","Mr. Lim","Ms. Rivera","Mr. Cruz"]),n(r,27,49),60)];
+    if(two)people.push(rel(r,"secondGuardian",pick(r,ADULT)+" "+last,n(r,25,39),0));
+    if(hasSibling)people.push(rel(r,"sibling",pick(r,SIB)+" "+last,n(r,2,5),0));
+    if(hasGrandmother)people.push(rel(r,"grandmother",pick(r,LOLA),n(r,52,69),0));
+    return{version:2,seed:seed||1,rngState:(seed||1)^0x9e3779b9,character:{firstName:first,lastName:last,sex:r()>.5?"Female":"Male",birthplace:place.city+", "+place.country,ageMonths:0,birthYear:2026,birthMonth:month,personality:personality},date:{year:2026,month:month,day:n(r,3,25)},household:{name:"The "+last+" Family Home",housing:place.housing,city:place.city,country:place.country,neighborhood:place.neighborhood,financeBand:band,privacy:two&&hasSibling?"Limited":"Moderate",comfort:band==="Comfortable"?"Comfortable":band==="Tight"?"Basic":"Modest",savings:band==="Comfortable"?n(r,30000,90000):band==="Tight"?n(r,0,5000):n(r,6000,25000)},health:{wellbeing:n(r,64,82),energy:n(r,62,82),stress:n(r,12,28)},interests:{drawing:n(r,15,30),reading:n(r,15,30),gardening:n(r,10,24),cooking:n(r,10,24),gaming:n(r,10,24),music:n(r,10,24),making:n(r,15,30)},education:{subjects:{mathematics:n(r,42,62),language:n(r,42,62),science:n(r,42,62),art:n(r,42,62),physicalEducation:n(r,42,62)}},money:{savings:0},people:people,memories:[],history:[],worldEvents:[],recentEventIds:[],currentEventId:"held_after_crying",resolution:null,completed:false};
+  }
+  function save(x){localStorage.setItem(KEY,JSON.stringify(x))}
+  function read(){try{var x=JSON.parse(localStorage.getItem(KEY));return x&&x.version===2&&x.character&&x.household?x:null}catch(e){return null}}
+  function clean(x){return String(x||"").trim().replace(/[^A-Za-zÀ-ÖØ-öø-ÿ' -]/g,"").replace(/\s+/g," ").slice(0,28)}
+  function shell(html){document.getElementById("app").innerHTML='<section class="setup-screen">'+html+'</section>'}
+  function choice(){shell('<div class="setup-header"><p class="brand">Little Days</p><h1>Begin a life</h1><p>Every life starts with things you choose and things you don\'t.</p></div><div class="setup-options"><button class="setup-option" onclick="LittleDaysStart.random()"><strong>Random life</strong><span>Let everything be generated, including your character.</span></button><button class="setup-option" onclick="LittleDaysStart.custom()"><strong>Custom character</strong><span>Choose your character\'s identity. Their family, money, home, birthplace, temperament, health risks, and circumstances are still generated.</span></button></div><p class="setup-footnote">You can choose the person. You cannot choose the life waiting for them.</p>')}
+  function custom(){shell('<div class="setup-header compact"><p class="brand">Little Days</p><h1>Create your character</h1><p>You choose who the character is. You do not choose the world they are born into.</p></div><form class="custom-form" id="custom-form"><label><span>First name</span><input name="first" required maxlength="28"></label><label><span>Last name</span><input name="last" required maxlength="28"></label><label><span>Identity</span><select name="sex"><option>Female</option><option>Male</option><option>Non-binary</option></select></label><div class="setup-note"><strong>Still generated</strong><p>Family, finances, home, birthplace, temperament, abilities, health, and future opportunities.</p></div><button class="setup-primary" type="submit">Create this life</button><button class="setup-secondary" type="button" onclick="LittleDaysStart.choice()">Back</button></form>');document.getElementById("custom-form").onsubmit=function(e){e.preventDefault();var d=new FormData(e.target),f=clean(d.get("first")),l=clean(d.get("last"));if(!f||!l)return;begin("custom",{first:f,last:l,sex:d.get("sex")})}}
+  function customize(life,d){life.character.firstName=d.first;life.character.lastName=d.last;life.character.sex=d.sex;life.household.name="The "+d.last+" Family Home";life.people.forEach(function(p){if(["guardian","secondGuardian","sibling"].indexOf(p.role)>=0){var a=p.name.split(/\s+/);a[a.length-1]=d.last;p.name=a.join(" ")}})}
+  function date(life){return["January","February","March","April","May","June","July","August","September","October","November","December"][life.date.month]+" "+life.date.day+", "+life.date.year}
+  function intro(life){var g=[],sib=null,gm=null;life.people.forEach(function(p){if(p.role==="guardian"||p.role==="secondGuardian")g.push(p.name);if(p.role==="sibling")sib=p;if(p.role==="grandmother")gm=p});var family=g.length?"Your home is shared with "+g.join(" and ")+".":"Your household is already taking shape around you.";if(sib)family+=" You have a sibling, "+sib.name+".";if(gm)family+=" "+gm.name+" is part of your family world too.";var line=life.startMode==="custom"?"You chose your character. You did not choose the circumstances waiting for them.":"You did not choose who you would be or the circumstances waiting for you.";shell('<div class="birth-intro"><p class="brand">Little Days</p><p class="birth-kicker">A new life</p><h1>You were born.</h1><p class="birth-date">'+date(life)+'</p><div class="birth-rule"></div><p class="birth-copy">Your name is <strong>'+life.character.firstName+' '+life.character.lastName+'</strong>. You were born in '+life.character.birthplace+'.</p><p class="birth-copy">You begin life in a '+life.household.housing.toLowerCase()+' in '+life.household.city+'. '+family+'</p><p class="birth-copy">Money in the household is <strong>'+life.household.financeBand.toLowerCase()+'</strong>. The neighborhood is '+life.household.neighborhood.toLowerCase()+'.</p><div class="birth-rule"></div><p class="birth-philosophy">'+line+'</p><p class="birth-philosophy">You will discover the rest by living.</p><button class="setup-primary" onclick="LittleDaysStart.play()">Begin</button></div>')}
+  function begin(mode,data){var life=makeLife();if(mode==="custom")customize(life,data);life.startMode=mode;life.introPending=true;save(life);intro(life)}
+  function normalize(life){if(!life||life.character.ageMonths>=36||life.currentEventId!=="family_evening")return;life.resolution=null;life.currentEventId=life.character.ageMonths<12?"held_after_crying":life.character.ageMonths<24?"cupboard_discovery":"playground_edge"}
+  function error(msg){shell('<div class="setup-header"><p class="brand">Little Days</p><h1>Something didn\'t load.</h1><p>'+msg+'</p></div><button class="setup-primary" onclick="location.reload()">Reload</button>')}
+  function play(){var life=read();if(!life){choice();return}life.introPending=false;normalize(life);save(life);shell('<div class="setup-header"><p class="brand">Little Days</p><h1>Opening your life…</h1><p>One moment.</p></div>');var done=false;import("./app.js?v=11").then(function(game){if(game&&typeof game.initializeApp==="function")game.initializeApp();done=true}).catch(function(){done=true;error("The life was saved, but the game screen could not open. Reload once to try again.")});setTimeout(function(){if(!done||!document.querySelector(".screen"))error("The game took too long to open. Your life is saved, so reloading will not erase it.")},4000)}
+  window.LittleDaysStart={random:function(){begin("random")},custom:custom,choice:choice,play:play};
+  document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("[data-new-life]");if(!b)return;e.preventDefault();e.stopPropagation();if(confirm("Begin a different life? Your current childhood will be replaced.")){localStorage.removeItem(KEY);choice();scrollTo(0,0)}},true);
+  var existing=read();if(existing){normalize(existing);save(existing);existing.introPending?intro(existing):play()}else choice();
+})();
+</script>
+</body>
 </html>
