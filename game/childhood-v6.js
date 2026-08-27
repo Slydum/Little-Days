@@ -1,12 +1,12 @@
-import * as core from "./childhood-v5.js?core=psychology-events-v1";
+import * as core from "./childhood-v5.js?core=psychology-events-v2";
 import {
   decorateEventWithPsychology,
   psychologyEventSnapshot,
   syncPsychologyEventIntegration,
-} from "./psychology-events.js?v=1";
+} from "./psychology-events-v2.js?v=1";
 
-export * from "./childhood-v5.js?core=psychology-events-v1";
-export { psychologyEventSnapshot } from "./psychology-events.js?v=1";
+export * from "./childhood-v5.js?core=psychology-events-v2";
+export { psychologyEventSnapshot } from "./psychology-events-v2.js?v=1";
 
 export function ensureChildhoodState(state) {
   const next = core.ensureChildhoodState(state);
