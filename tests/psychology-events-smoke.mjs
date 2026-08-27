@@ -21,7 +21,7 @@ function setPattern(state, id, score) {
 }
 
 const socialEvent = {
-  id: "test_new_classroom",
+  id: "social_new_classroom",
   category: "Friends",
   title: "A different classroom",
   body: "The room is full of classmates settling into their places.",
