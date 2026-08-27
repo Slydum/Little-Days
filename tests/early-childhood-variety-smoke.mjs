@@ -5,7 +5,7 @@ import {
   createNewLife,
   getCurrentEvent,
   resolveChoice,
-} from "../game/engine-v25.js";
+} from "../game/engine-v26.js";
 
 const earlyIds = new Set(EARLY_EVENTS.map((event) => event.id));
 const openings = new Set();
