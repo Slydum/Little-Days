@@ -6,7 +6,7 @@ import {
   decorateEventWithPsychology,
   psychologicalEventContext,
   syncPsychologyEventIntegration,
-} from "../game/psychology-events.js";
+} from "../game/psychology-events-v2.js";
 
 function schoolAgeState(seed = 42001) {
   const state = createNewLife(seed);
