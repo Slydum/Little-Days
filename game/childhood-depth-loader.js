@@ -90,8 +90,8 @@ function renderProfileDepth() {
       ensureChildhoodDepth(latest);
       if (!queueRelationshipInteraction(latest, personId, button.dataset.depthAction)) return;
       writeState(latest);
+      window.dispatchEvent(new CustomEvent("little-days-state-sync", { detail: { state: latest } }));
       location.hash = "life";
-      location.reload();
     });
   });
   screen.dataset.depthProfileFor = personId;
