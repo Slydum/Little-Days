@@ -20,6 +20,10 @@ jobs:
           node --check game/content.js
           node --check game/callbacks.js
           node --check game/realism.js
+          node --check game/contextual-events.js
           node --check tests/realism-smoke.mjs
+          node --check tests/contextual-events-smoke.mjs
       - name: Smoke test living household
         run: node tests/realism-smoke.mjs
+      - name: Smoke test contextual life loop
+        run: node tests/contextual-events-smoke.mjs
