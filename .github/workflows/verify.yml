@@ -45,6 +45,7 @@ jobs:
           node --check game/psychology-phase2.js
           node --check game/psychology-phase3.js
           node --check game/psychology-events.js
+          node --check game/psychology-events-v2.js
           node --check game/psychology-phase3-loader.js
           node --check tests/realism-smoke.mjs
           node --check tests/contextual-events-smoke.mjs
