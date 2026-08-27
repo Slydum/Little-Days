@@ -16,7 +16,7 @@ import {
   relationshipLabel,
   resolveChoice,
   schoolSnapshot,
-} from "./game/engine.js";
+} from "./game/engine.js?v=20";
 import {
   advanceRealism,
   deathSummary,
@@ -24,8 +24,8 @@ import {
   getAroundYou,
   getBirthdayRecap,
   healthSnapshot,
-} from "./game/realism.js";
-import { contextualEventForState, resolveContextualChoice } from "./game/contextual-events.js";
+} from "./game/realism.js?v=20";
+import { contextualEventForState, resolveContextualChoice } from "./game/contextual-events.js?v=20";
 
 const STORAGE_KEY = "little-days-save-v2";
 
@@ -299,9 +299,15 @@ function memoriesScreen() {
   return shell(`${brand("Memories")}${memories.length?`<div class="memory-timeline">${memories.map(memory=>`<article class="memory-entry ${memory.featured?"featured":""}"><p class="memory-date">Age ${memory.age} · ${memory.date}</p><h2 class="memory-title">${memory.title}</h2><p class="memory-copy">${memory.copy}</p></article>`).join("")}</div>`:`<p class="body-note">Nothing has become a lasting memory yet. That will change. Childhood is annoyingly efficient at leaving evidence behind.</p>`}`,"memories");
 }
 
+function householdMembers() {
+  const visible = getVisiblePeople(state).filter(person => person.role !== "friend" && person.role !== "teacher" && !person.deceased);
+  const explicit = visible.filter(person => person.family?.household === true);
+  return explicit.length ? explicit : visible.filter(person => ["guardian", "secondGuardian", "sibling"].includes(person.role));
+}
+
 function homeScreen() {
-  const age=getAgeYears(state), householdPeople=getVisiblePeople(state).filter(person=>person.role!=="friend");
-  return shell(`${brand()}<h1 class="home-title">Home</h1><h2 class="home-subtitle">${state.household.name}</h2><p class="kicker-copy">${state.household.housing}<br />${state.household.city}, ${state.household.country}</p><section class="data-section"><h3 class="data-heading">Household</h3><div class="data-row"><span class="initial-chip">${state.character.firstName[0]}</span><span class="label">You · ${state.character.firstName}</span><span class="value">${age}</span></div>${householdPeople.map(person=>`<div class="data-row"><span class="initial-chip">${personInitial(person)}</span><span class="label">${person.name}</span><span class="value">${person.deceased?"Remembered":person.age+age}</span></div>`).join("")}</section><section class="data-section"><h3 class="data-heading">Home Life</h3><div class="data-row">${icons.home}<span class="label">Comfort</span><span class="value">${state.household.comfort}</span></div><div class="data-row">${icons.shield}<span class="label">Privacy</span><span class="value">${state.household.privacy}</span></div><div class="data-row">${icons.book}<span class="label">Finances</span><span class="value">${state.household.financeBand}</span></div><div class="data-row">${icons.people}<span class="label">Neighborhood</span><span class="value">${state.household.neighborhood}</span></div></section><p class="body-note">${state.household.financeBand==="Tight"?"Money sometimes changes what the household can say yes to.":state.household.privacy==="Limited"?"The home can feel crowded, although familiar routines make it feel like yours.":"Home life is fairly steady at the moment."}</p>`,"home");
+  const age=getAgeYears(state), householdPeople=householdMembers();
+  return shell(`${brand()}<h1 class="home-title">Home</h1><h2 class="home-subtitle">${state.household.name}</h2><p class="kicker-copy">${state.household.housing}<br />${state.household.city}, ${state.household.country}</p><section class="data-section"><h3 class="data-heading">Household</h3><div class="data-row"><span class="initial-chip">${state.character.firstName[0]}</span><span class="label">You · ${state.character.firstName}</span><span class="value">${age}</span></div>${householdPeople.map(person=>`<div class="data-row"><span class="initial-chip">${personInitial(person)}</span><span class="label">${person.name}</span><span class="value">${person.age+age}</span></div>`).join("")}</section><section class="data-section"><h3 class="data-heading">Home Life</h3><div class="data-row">${icons.home}<span class="label">Comfort</span><span class="value">${state.household.comfort}</span></div><div class="data-row">${icons.shield}<span class="label">Privacy</span><span class="value">${state.household.privacy}</span></div><div class="data-row">${icons.book}<span class="label">Finances</span><span class="value">${state.household.financeBand}</span></div><div class="data-row">${icons.people}<span class="label">Neighborhood</span><span class="value">${state.household.neighborhood}</span></div></section><p class="body-note">${state.household.financeBand==="Tight"?"Money sometimes changes what the household can say yes to.":state.household.privacy==="Limited"?"The home can feel crowded, although familiar routines make it feel like yours.":"Home life is fairly steady at the moment."}</p>`,"home");
 }
 
 function schoolScreen() {
@@ -317,7 +323,7 @@ function healthScreen() {
 
 function overviewScreen() {
   const overview=lifeOverview(state), rows=[[icons.family,"Family",overview.rows.family],[icons.book,"School",overview.rows.school],[icons.heart,"Friends",overview.rows.friends],[icons.moon,"Health",healthSnapshot(state).physical],[icons.pen,"Interests",overview.rows.interests],[icons.home,"Home",overview.rows.home]];
-  return shell(`${brand("Life")}<p class="life-feeling-label">Life lately</p><p class="life-feeling">${overview.feeling}</p><div>${rows.map(([icon,title,copy])=>`<article class="overview-row"><div>${icon}</div><div><h3>${title}</h3><p>${copy}</p></div></article>`).join("")}</div>`,"overview");
+  return shell(`${brand("Life")}<p class="life-feeling-label">Life lately</p><p class="life-feeling">${overview.feeling}</p><div>${rows.map(([icon,title,copy])=>`<article class="overview-row"><div>${icon}</div><div><h3>${title}</h3><p>${copy}</p></article>`).join("")}</div>`,"overview");
 }
 
 function moreScreen() {
