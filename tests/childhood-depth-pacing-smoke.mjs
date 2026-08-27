@@ -17,6 +17,7 @@ import {
   npcKnowledgeSnapshot,
   queueRelationshipInteraction,
 } from "../game/childhood-depth.js";
+import { shouldInsertLittleMoment } from "../game/childhood-depth-v2.js";
 
 function step(state) {
   ensureChildhoodState(state);
@@ -61,11 +62,13 @@ friend.introducedAtMonths = Math.min(friend.introducedAtMonths || 60, 60);
 const actions = availableRelationshipActions(social, friend.id);
 assert.ok(actions.some((action) => action.id === "spend" || action.id === "talk"), "friend profile should offer an age-appropriate interaction");
 const action = actions.find((item) => item.id === "talk") || actions[0];
+const knowledgeBefore = npcKnowledgeSnapshot(social, friend.id);
 assert.equal(queueRelationshipInteraction(social, friend.id, action.id), true, "profile action should queue an interaction");
 const interaction = childhoodEventForState(social);
 assert.equal(interaction?.childhoodDepthKind, "interaction", "queued interaction should become the next relationship scene");
+const revealChoice = interaction.choices.find((choice) => choice.depthRevealFactId) || interaction.choices[0];
 const beforeAge = social.character.ageMonths;
-resolveChildhoodChoice(social, interaction.choices[0].id);
+resolveChildhoodChoice(social, revealChoice.id);
 assert.equal(social.resolution?.depthKind, "interaction");
 continueLife(social);
 assert.equal(social.character.ageMonths, beforeAge, "player-initiated time together should not skip months");
@@ -76,6 +79,21 @@ assert.equal(social.childhoodDepth.interactionBudget.used, 1, "interaction shoul
 const knowledge = npcKnowledgeSnapshot(social, friend.id);
 assert.ok(knowledge, "friend should have a knowledge snapshot");
 assert.ok(knowledge.unknownCount > 0, "the player should not magically know everything about a friend");
-assert.ok(knowledge.known.length < knowledge.known.length + knowledge.unknownCount, "NPC knowledge should be discoverable over time");
+assert.ok(knowledge.known.length >= knowledgeBefore.known.length, "time together should preserve or expand what the player knows about a friend");
+if (revealChoice.depthRevealFactId) assert.ok(knowledge.known.length > knowledgeBefore.known.length, "asking about a friend should be able to reveal a new detail about them");
+
+// Ordinary moments must not interrupt urgent illness, recovery, or major family threads.
+const urgent = ensureChildhoodState(createNewLife(77119));
+urgent.character.ageMonths = 96;
+ensureChildhoodDepth(urgent);
+urgent.resolution = {
+  choiceId: "rest",
+  result: "You rest.",
+  contextualEventId: "context_illness_begins",
+  contextualEvent: { id: "context_illness_begins", contextKind: "illness" },
+};
+assert.equal(shouldInsertLittleMoment(urgent), false, "a sick-day resolution should advance without an unrelated little moment interrupting it");
+urgent.resolution.contextualEvent.contextKind = "thread";
+assert.equal(shouldInsertLittleMoment(urgent), false, "a major family thread should advance without an unrelated little moment interrupting it");
 
 console.log(`Childhood depth pacing smoke test passed with ${scenes} scenes (${zeroMonthScenes} ordinary/extra-time scenes).`);
