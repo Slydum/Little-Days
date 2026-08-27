@@ -7,8 +7,8 @@
     <meta name="description" content="Little Days — a quiet, story-first life simulation." />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=9" />
-    <link rel="stylesheet" href="./setup.css?v=9" />
+    <link rel="stylesheet" href="./styles.css?v=10" />
+    <link rel="stylesheet" href="./setup.css?v=10" />
     <title>Little Days</title>
   </head>
   <body>
@@ -309,7 +309,24 @@
         normalizeEarly(life);
         save(life);
         shell('<div class="setup-header"><p class="brand">Little Days</p><h1>Opening your life…</h1><p>One moment.</p></div>');
-        import("./app.js?v=9").catch(function () { showError("The life was created, but the game screen could not open. Reloading once usually fixes this."); });
+
+        var settled = false;
+        import("./app.js?v=10")
+          .then(function (game) {
+            if (game && typeof game.initializeApp === "function") game.initializeApp();
+            settled = true;
+          })
+          .catch(function (error) {
+            settled = true;
+            showError("The life was created, but the game screen could not open. Reload once to try the latest build.");
+          });
+
+        window.setTimeout(function () {
+          if (settled && document.querySelector(".screen")) return;
+          if (!document.querySelector(".screen")) {
+            showError("The game took too long to open. Your life is saved, so reloading will not erase it.");
+          }
+        }, 3500);
       }
 
       function closestWithAttribute(node, attribute) {
