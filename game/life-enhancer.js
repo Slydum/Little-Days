@@ -1,5 +1,5 @@
 const STORAGE_KEY = "little-days-save-v2";
-const RELOAD_PREFIX = "little-days-enhancer-reload-v26";
+const RELOAD_PREFIX = "little-days-enhancer-reload-v27";
 const HONORIFICS = new Set(["Lola", "Lolo", "Auntie", "Uncle", "Tita", "Tito"]);
 
 const ITEM_CATALOG = [
@@ -256,7 +256,6 @@ function processWorld(state){
     changed=processGifts(state,before)||changed;
     changed=processRelationshipDrama(state,elapsed)||changed;
     state.lifeEnhancer.lastProcessedAgeMonths=current;
-    changed=true;
   }
   return changed;
 }
@@ -307,8 +306,8 @@ export function refreshLifeEnhancer(){
   if(!state)return;
   ensureState(state);
   const changed=processWorld(state);
+  saveState(state);
   if(changed){
-    saveState(state);
     const key=`${RELOAD_PREFIX}:${state.seed}:${state.character.ageMonths}`;
     if(!sessionStorage.getItem(key)){
       sessionStorage.setItem(key,"1");
