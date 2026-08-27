@@ -1,3 +1,5 @@
+window.__littleDaysBooted = true;
+
 const STORAGE_KEY = "little-days-save-v2";
 
 function readSave() {
@@ -82,7 +84,11 @@ function showStartupError(error) {
     </div>
     <button class="setup-primary" id="retry-startup">Try again</button>
   `);
-  document.querySelector("#retry-startup")?.addEventListener("click", () => location.reload());
+  document.querySelector("#retry-startup")?.addEventListener("click", () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("fresh", Date.now().toString());
+    window.location.replace(url.toString());
+  });
 }
 
 function showLifeChoice() {
@@ -168,7 +174,7 @@ async function createAndIntroduce(mode, custom = null) {
   `);
 
   try {
-    const { createNewLife } = await import("./game/engine.js?v=6");
+    const { createNewLife } = await import("./game/engine.js?v=7");
     let life = createNewLife();
     if (mode === "custom") life = applyCustomIdentity(life, custom);
     life.startMode = mode;
@@ -219,7 +225,7 @@ function showIntroduction(state) {
     if (!save) return showLifeChoice();
     save.introPending = false;
     writeSave(save);
-    location.reload();
+    loadGame();
   });
 }
 
@@ -247,10 +253,19 @@ function installNewLifeInterceptor() {
       if (!save) return;
       if (normalizeEarlyEvent(save)) {
         writeSave(save);
-        location.reload();
+        window.location.reload();
       }
     }, 0);
   });
+}
+
+async function loadGame() {
+  installNewLifeInterceptor();
+  try {
+    await import("./app.js?v=7");
+  } catch (error) {
+    showStartupError(error);
+  }
 }
 
 async function boot() {
@@ -258,27 +273,18 @@ async function boot() {
 
   if (!saved) {
     showLifeChoice();
-  } else {
-    const corrected = normalizeEarlyEvent(saved);
-    if (corrected) writeSave(saved);
-
-    if (saved.introPending) {
-      showIntroduction(saved);
-    } else {
-      installNewLifeInterceptor();
-      try {
-        await import("./app.js?v=6");
-      } catch (error) {
-        showStartupError(error);
-      }
-    }
+    return;
   }
 
-  if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    navigator.serviceWorker.register("./sw.js?v=6").catch(() => {
-      // The game can still run without offline caching.
-    });
+  const corrected = normalizeEarlyEvent(saved);
+  if (corrected) writeSave(saved);
+
+  if (saved.introPending) {
+    showIntroduction(saved);
+    return;
   }
+
+  await loadGame();
 }
 
 boot().catch(showStartupError);
