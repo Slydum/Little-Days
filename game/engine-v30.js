@@ -5,7 +5,7 @@ import {
   ensureChildhoodDepth,
   restorePendingAdvance,
   shouldInsertLittleMoment,
-} from "./childhood-depth.js?v=1";
+} from "./childhood-depth-v2.js?v=1";
 
 export * from "./engine-v29.js?core=depth-v2";
 
