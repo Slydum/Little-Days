@@ -137,6 +137,13 @@ function personRole(person) {
   return person.relationshipLabel || ({guardian:"Parent / Guardian",secondGuardian:"Parent / Guardian",grandmother:"Grandmother",grandfather:"Grandfather",sibling:"Sibling",aunt:"Aunt",uncle:"Uncle",cousin:"Cousin",friend:"Friend"})[person.role] || "Relationship";
 }
 
+function personInitial(person) {
+  const parts = String(person.name || "?").trim().split(/\s+/);
+  const honorifics = new Set(["Lola", "Lolo", "Auntie", "Uncle", "Tita", "Tito"]);
+  const useful = parts.find(part => !honorifics.has(part)) || parts[0] || "?";
+  return useful[0]?.toUpperCase() || "?";
+}
+
 function peopleTabs(active) {
   return `<div class="people-tabs" aria-label="People views"><button class="people-tab ${active==="people"?"active":""}" data-route="people">People</button><button class="people-tab ${active==="family"?"active":""}" data-route="family-tree">Family tree</button></div>`;
 }
@@ -163,33 +170,58 @@ function peopleScreen() {
     const relation = person.deceased ? "Remembered" : relationshipLabel(person);
     const copy = person.deceased ? (person.npc?.currentThread || `${person.name} is no longer alive.`) : relationshipCopy(person);
     const meta = person.deceased ? `Died at age ${person.diedAtAge}` : person.role==="friend" ? `Known for — ${Math.max(0,age-5)} year${Math.max(0,age-5)===1?"":"s"}` : `Age — ${person.age+age}`;
-    return `<button class="person-card person-card-button" data-person-id="${person.id}"><div class="avatar" aria-hidden="true">${person.name[0]}</div><div><h2 class="person-name">${person.name}</h2><p class="person-role">${personRole(person)} — ${relation}</p><p class="person-copy">${copy}</p><p class="person-meta">${meta} · View profile</p></div></button>`;
+    return `<button class="person-card person-card-button" data-person-id="${person.id}"><div class="avatar" aria-hidden="true">${personInitial(person)}</div><div><h2 class="person-name">${person.name}</h2><p class="person-role">${personRole(person)} — ${relation}</p><p class="person-copy">${copy}</p><p class="person-meta">${meta} · View profile</p></div></button>`;
   }).join("")}</div>`,"people");
 }
 
 function familyNode(person) {
   const age = getAgeYears(state);
   const ageText = person.deceased ? "Deceased" : `Age ${person.age + age}`;
-  return `<button class="tree-person ${person.deceased?"deceased":""}" data-person-id="${person.id}"><span class="tree-avatar">${person.name[0]}</span><span class="tree-name">${person.name}</span><span class="tree-role">${personRole(person)}</span><span class="tree-age">${ageText}</span></button>`;
+  return `<button class="tree-person ${person.deceased?"deceased":""}" data-person-id="${person.id}"><span class="tree-avatar">${personInitial(person)}</span><span class="tree-name">${person.name}</span><span class="tree-role">${personRole(person)}</span><span class="tree-age">${ageText}</span></button>`;
+}
+
+function missingParentSummary(origin, caregivers) {
+  const text = String(origin || "").toLowerCase();
+  const roles = caregivers.map(person => personRole(person).toLowerCase());
+  const hasMother = roles.some(role => role === "mother" || role.includes("biological mother"));
+  const hasFather = roles.some(role => role === "father" || role.includes("biological father"));
+
+  if (text.includes("biological father died")) return { title: "Biological father", copy: "Died before you were born" };
+  if (text.includes("biological mother died")) return { title: "Biological mother", copy: "Died before you were born" };
+  if (text.includes("parents separated") && hasMother && !hasFather) return { title: "Biological father", copy: "Lives elsewhere" };
+  if (text.includes("mother is not part of your household") && hasFather && !hasMother) return { title: "Biological mother", copy: "Not in your household" };
+  if (text.includes("adopted at birth")) return { title: "Biological parents", copy: "Not part of your known family yet" };
+  if (text.includes("biological parents cannot care") || text.includes("parents are not able to raise")) return { title: "Biological parents", copy: "Not raising you" };
+  if (text.includes("abandoned") || text.includes("foster care")) return { title: "Biological parents", copy: "Unknown or absent at the start of your life" };
+  return null;
+}
+
+function caregiverHeading(caregivers) {
+  const labels = caregivers.map(person => personRole(person).toLowerCase());
+  if (labels.length && labels.every(label => label === "mother" || label === "father")) return "Parents";
+  if (labels.some(label => label.includes("grandmother") || label.includes("grandfather") || label.includes("aunt") || label.includes("uncle"))) return "People raising you";
+  if (labels.some(label => label.includes("foster") || label.includes("adoptive") || label.includes("step"))) return "Parents & caregivers";
+  return "Parents & caregivers";
 }
 
 function familyTreeScreen() {
   const visible = getVisiblePeople(state).filter(person => person.role !== "friend");
-  const grandparents = visible.filter(person => ["grandmother","grandfather"].includes(person.role));
-  const parents = visible.filter(person => ["guardian","secondGuardian"].includes(person.role));
+  const caregivers = visible.filter(person => ["guardian","secondGuardian"].includes(person.role));
   const siblings = visible.filter(person => person.role === "sibling");
+  const grandparents = visible.filter(person => ["grandmother","grandfather"].includes(person.role));
   const auntsUncles = visible.filter(person => ["aunt","uncle"].includes(person.role));
   const cousins = visible.filter(person => person.role === "cousin");
   const origin = state.family?.originStory || "Your family story is still becoming known to you.";
+  const missingParent = missingParentSummary(origin, caregivers);
   const player = `<div class="tree-person tree-you" aria-label="You"><span class="tree-avatar">${state.character.firstName[0]}</span><span class="tree-name">${state.character.firstName} ${state.character.lastName}</span><span class="tree-role">You</span><span class="tree-age">${getAgeLabel(state)}</span></div>`;
   const treeStyles = `<style>
-    .tree-intro{margin:0 auto 20px;max-width:360px;text-align:center;color:var(--muted);font-family:var(--serif);font-size:13px;line-height:1.5;font-style:italic}
+    .tree-intro{margin:0 auto 18px;max-width:360px;text-align:center;color:var(--muted);font-family:var(--serif);font-size:13px;line-height:1.5;font-style:italic}
     .family-tree{padding:2px 0 8px}
-    .tree-generation{position:relative;padding:8px 0 28px;text-align:center}
-    .tree-generation:not(:last-child)::after{content:"";position:absolute;left:50%;bottom:0;width:1px;height:28px;background:var(--line-strong)}
+    .tree-direct{position:relative;padding:8px 0 28px;text-align:center}
+    .tree-direct::after{content:"";position:absolute;left:50%;bottom:0;width:1px;height:28px;background:var(--line-strong)}
+    .tree-generation{position:relative;padding:8px 0 16px;text-align:center}
     .tree-label{margin:0 0 10px;color:var(--muted);font-size:9px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
     .tree-row{display:flex;justify-content:center;align-items:stretch;gap:8px;flex-wrap:wrap;position:relative}
-    .tree-row.paired::before{content:"";position:absolute;left:26%;right:26%;top:-7px;height:1px;background:var(--line)}
     .tree-person{-webkit-appearance:none;appearance:none;width:min(142px,45%);min-height:104px;margin:0;border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.28);color:var(--ink);padding:10px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font:inherit;cursor:pointer}
     .tree-person:active{background:rgba(113,129,105,.08)}
     .tree-person:focus-visible{outline:1px solid var(--sage);outline-offset:2px}
@@ -199,12 +231,27 @@ function familyTreeScreen() {
     .tree-name{font-family:var(--serif);font-size:14px;line-height:1.15}
     .tree-role{margin-top:4px;color:#4b4d46;font-size:9px;font-weight:700;line-height:1.25}
     .tree-age{margin-top:3px;color:var(--muted);font-size:9px}
-    .tree-extended{margin-top:2px;padding-top:18px;border-top:1px solid var(--line)}
+    .tree-placeholder{max-width:292px;margin:0 auto 18px;border:1px dashed var(--line-strong);border-radius:7px;padding:10px 12px;text-align:center;background:rgba(255,255,255,.16)}
+    .tree-placeholder strong{display:block;font-family:var(--serif);font-size:14px;font-weight:500}.tree-placeholder span{display:block;margin-top:3px;color:var(--muted);font-size:9px}
+    .tree-generation.you-generation{padding-bottom:22px}
+    .tree-generation.you-generation::before{content:"";position:absolute;left:50%;top:-8px;width:1px;height:16px;background:var(--line-strong)}
+    .tree-extended{margin-top:3px;padding-top:18px;border-top:1px solid var(--line)}
+    .tree-extended-title{margin:0 0 14px;text-align:left;font-family:var(--serif);font-size:15px;font-weight:500}
     .tree-extended-group+.tree-extended-group{margin-top:18px}
     .tree-note{margin:14px 0 0;text-align:center;color:var(--muted);font-size:10px;line-height:1.45}
   </style>`;
 
-  return shell(`${peopleSharedStyles()}${treeStyles}${brand("Family")}${peopleTabs("family")}<p class="tree-intro">${origin}</p><div class="family-tree">${grandparents.length?`<section class="tree-generation"><p class="tree-label">Grandparents</p><div class="tree-row ${grandparents.length===2?"paired":""}">${grandparents.map(familyNode).join("")}</div></section>`:""}${parents.length?`<section class="tree-generation"><p class="tree-label">Parents & guardians</p><div class="tree-row ${parents.length===2?"paired":""}">${parents.map(familyNode).join("")}</div></section>`:""}<section class="tree-generation"><p class="tree-label">Your generation</p><div class="tree-row">${siblings.map(familyNode).join("")}${player}</div></section>${auntsUncles.length||cousins.length?`<section class="tree-extended"><div class="tree-extended-group">${auntsUncles.length?`<p class="tree-label">Aunts & uncles</p><div class="tree-row">${auntsUncles.map(familyNode).join("")}</div>`:""}</div>${cousins.length?`<div class="tree-extended-group"><p class="tree-label">Cousins</p><div class="tree-row">${cousins.map(familyNode).join("")}</div></div>`:""}</section>`:`<p class="tree-note">No extended relatives are known to you yet.</p>`}</div><p class="tree-note">Tap a relative to open their profile. The tree only shows family your character currently knows about, so it can grow as life reveals more.</p>`,"family-tree");
+  const directFamily = caregivers.length
+    ? `<section class="tree-direct"><p class="tree-label">${caregiverHeading(caregivers)}</p><div class="tree-row">${caregivers.map(familyNode).join("")}</div></section>`
+    : "";
+  const yourGeneration = `<section class="tree-generation you-generation"><p class="tree-label">Your generation</p><div class="tree-row">${player}${siblings.map(familyNode).join("")}</div></section>`;
+  const extendedGroups = [
+    grandparents.length ? `<div class="tree-extended-group"><p class="tree-label">Other known grandparents</p><div class="tree-row">${grandparents.map(familyNode).join("")}</div></div>` : "",
+    auntsUncles.length ? `<div class="tree-extended-group"><p class="tree-label">Aunts & uncles</p><div class="tree-row">${auntsUncles.map(familyNode).join("")}</div></div>` : "",
+    cousins.length ? `<div class="tree-extended-group"><p class="tree-label">Cousins</p><div class="tree-row">${cousins.map(familyNode).join("")}</div></div>` : "",
+  ].join("");
+
+  return shell(`${peopleSharedStyles()}${treeStyles}${brand("Family")}${peopleTabs("family")}<p class="tree-intro">${origin}</p>${missingParent?`<div class="tree-placeholder"><strong>${missingParent.title}</strong><span>${missingParent.copy}</span></div>`:""}<div class="family-tree">${directFamily}${yourGeneration}${extendedGroups?`<section class="tree-extended"><h2 class="tree-extended-title">Known extended family</h2>${extendedGroups}</section>`:`<p class="tree-note">No extended relatives are known to you yet.</p>`}</div><p class="tree-note">Only relationships the game actually knows are connected. Extended relatives stay unconnected until their exact branch is known, instead of inventing who is whose parent.</p>`,"family-tree");
 }
 
 function levelWord(value, low, mid, high) {
@@ -236,7 +283,7 @@ function personProfileScreen(id) {
   const styles = `<style>
     .person-profile-head{text-align:center;padding:5px 0 12px}.profile-avatar{width:72px;height:72px;margin:0 auto 10px;border:1px solid var(--line-strong);border-radius:999px;display:grid;place-items:center;font-family:var(--serif);font-size:32px;background:#f4efe5}.profile-name{margin:0;font-family:var(--serif);font-size:27px;font-weight:500}.profile-role{margin:4px 0;color:var(--muted);font-size:12px}.profile-back{-webkit-appearance:none;appearance:none;border:0;background:transparent;padding:4px 0 12px;color:var(--sage);font-size:12px;cursor:pointer}.profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 16px}.profile-fact{border-top:1px solid var(--line);padding:9px 0}.profile-fact span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.profile-fact strong{display:block;margin-top:2px;font-family:var(--serif);font-size:15px;font-weight:500}.personality-row{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding:9px 0;font-size:12px}.personality-row:last-child{border-bottom:1px solid var(--line)}.personality-row strong{font-weight:500;text-align:right}.profile-section{margin-top:18px}.profile-section h2{margin:0 0 6px;font-family:var(--serif);font-size:18px;font-weight:500}.profile-section p{margin:0;font-size:12px;line-height:1.5}
   </style>`;
-  return shell(`${styles}<button class="profile-back" data-route="people">‹ People</button>${brand()}<div class="person-profile-head"><div class="profile-avatar">${person.name[0]}</div><h1 class="profile-name">${person.name}</h1><p class="profile-role">${personRole(person)} · ${relation}</p></div><div class="profile-grid"><div class="profile-fact"><span>Age</span><strong>${currentAge}</strong></div><div class="profile-fact"><span>Sex</span><strong>${person.sex || "Unknown"}</strong></div><div class="profile-fact"><span>Interest</span><strong>${realism.interest || "Not known yet"}</strong></div><div class="profile-fact"><span>Work</span><strong>${work || (person.role==="sibling"||person.role==="cousin" ? "Child" : "Not known")}</strong></div></div><section class="profile-section"><h2>Personality</h2>${personality.map(([label,value])=>`<div class="personality-row"><span>${label}</span><strong>${value}</strong></div>`).join("")}</section><section class="profile-section"><h2>Your relationship</h2><p>${current}</p><div class="profile-grid"><div class="profile-fact"><span>Closeness</span><strong>${levelWord(person.closeness ?? 50,"Distant","Growing","Very close")}</strong></div><div class="profile-fact"><span>Trust</span><strong>${levelWord(person.trust ?? 50,"Low","Developing","Strong")}</strong></div></div></section>${realism.health?`<section class="profile-section"><h2>Life lately</h2><p>${realism.health < 45 ? "Their health has been difficult lately." : realism.mental < 45 ? "They seem to be carrying a lot emotionally." : "Their life seems fairly steady at the moment."}${realism.interest?` They are interested in ${realism.interest}.`:""}</p></section>`:""}${history.length?`<section class="profile-section"><h2>Shared history</h2>${history.map(item=>`<p style="margin-bottom:8px">${item.note || item.text || item.result || "A moment you shared became part of your history."}</p>`).join("")}</section>`:""}`,`person/${id}`);
+  return shell(`${styles}<button class="profile-back" data-route="people">‹ People</button>${brand()}<div class="person-profile-head"><div class="profile-avatar">${personInitial(person)}</div><h1 class="profile-name">${person.name}</h1><p class="profile-role">${personRole(person)} · ${relation}</p></div><div class="profile-grid"><div class="profile-fact"><span>Age</span><strong>${currentAge}</strong></div><div class="profile-fact"><span>Sex</span><strong>${person.sex || "Unknown"}</strong></div><div class="profile-fact"><span>Interest</span><strong>${realism.interest || "Not known yet"}</strong></div><div class="profile-fact"><span>Work</span><strong>${work || (person.role==="sibling"||person.role==="cousin" ? "Child" : "Not known")}</strong></div></div><section class="profile-section"><h2>Personality</h2>${personality.map(([label,value])=>`<div class="personality-row"><span>${label}</span><strong>${value}</strong></div>`).join("")}</section><section class="profile-section"><h2>Your relationship</h2><p>${current}</p><div class="profile-grid"><div class="profile-fact"><span>Closeness</span><strong>${levelWord(person.closeness ?? 50,"Distant","Growing","Very close")}</strong></div><div class="profile-fact"><span>Trust</span><strong>${levelWord(person.trust ?? 50,"Low","Developing","Strong")}</strong></div></div></section>${realism.health?`<section class="profile-section"><h2>Life lately</h2><p>${realism.health < 45 ? "Their health has been difficult lately." : realism.mental < 45 ? "They seem to be carrying a lot emotionally." : "Their life seems fairly steady at the moment."}${realism.interest?` They are interested in ${realism.interest}.`:""}</p></section>`:""}${history.length?`<section class="profile-section"><h2>Shared history</h2>${history.map(item=>`<p style="margin-bottom:8px">${item.note || item.text || item.result || "A moment you shared became part of your history."}</p>`).join("")}</section>`:""}`,`person/${id}`);
 }
 
 function selfScreen() {
@@ -251,7 +298,7 @@ function memoriesScreen() {
 
 function homeScreen() {
   const age=getAgeYears(state), householdPeople=getVisiblePeople(state).filter(person=>person.role!=="friend");
-  return shell(`${brand()}<h1 class="home-title">Home</h1><h2 class="home-subtitle">${state.household.name}</h2><p class="kicker-copy">${state.household.housing}<br />${state.household.city}, ${state.household.country}</p><section class="data-section"><h3 class="data-heading">Household</h3><div class="data-row"><span class="initial-chip">${state.character.firstName[0]}</span><span class="label">You · ${state.character.firstName}</span><span class="value">${age}</span></div>${householdPeople.map(person=>`<div class="data-row"><span class="initial-chip">${person.name[0]}</span><span class="label">${person.name}</span><span class="value">${person.deceased?"Remembered":person.age+age}</span></div>`).join("")}</section><section class="data-section"><h3 class="data-heading">Home Life</h3><div class="data-row">${icons.home}<span class="label">Comfort</span><span class="value">${state.household.comfort}</span></div><div class="data-row">${icons.shield}<span class="label">Privacy</span><span class="value">${state.household.privacy}</span></div><div class="data-row">${icons.book}<span class="label">Finances</span><span class="value">${state.household.financeBand}</span></div><div class="data-row">${icons.people}<span class="label">Neighborhood</span><span class="value">${state.household.neighborhood}</span></div></section><p class="body-note">${state.household.financeBand==="Tight"?"Money sometimes changes what the household can say yes to.":state.household.privacy==="Limited"?"The home can feel crowded, although familiar routines make it feel like yours.":"Home life is fairly steady at the moment."}</p>`,"home");
+  return shell(`${brand()}<h1 class="home-title">Home</h1><h2 class="home-subtitle">${state.household.name}</h2><p class="kicker-copy">${state.household.housing}<br />${state.household.city}, ${state.household.country}</p><section class="data-section"><h3 class="data-heading">Household</h3><div class="data-row"><span class="initial-chip">${state.character.firstName[0]}</span><span class="label">You · ${state.character.firstName}</span><span class="value">${age}</span></div>${householdPeople.map(person=>`<div class="data-row"><span class="initial-chip">${personInitial(person)}</span><span class="label">${person.name}</span><span class="value">${person.deceased?"Remembered":person.age+age}</span></div>`).join("")}</section><section class="data-section"><h3 class="data-heading">Home Life</h3><div class="data-row">${icons.home}<span class="label">Comfort</span><span class="value">${state.household.comfort}</span></div><div class="data-row">${icons.shield}<span class="label">Privacy</span><span class="value">${state.household.privacy}</span></div><div class="data-row">${icons.book}<span class="label">Finances</span><span class="value">${state.household.financeBand}</span></div><div class="data-row">${icons.people}<span class="label">Neighborhood</span><span class="value">${state.household.neighborhood}</span></div></section><p class="body-note">${state.household.financeBand==="Tight"?"Money sometimes changes what the household can say yes to.":state.household.privacy==="Limited"?"The home can feel crowded, although familiar routines make it feel like yours.":"Home life is fairly steady at the moment."}</p>`,"home");
 }
 
 function schoolScreen() {
