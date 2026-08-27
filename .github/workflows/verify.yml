@@ -28,7 +28,10 @@ jobs:
           node --check game/household-membership.js
           node --check game/childhood-v2.js
           node --check game/childhood-v3.js
+          node --check game/childhood-v4.js
           node --check game/childhood-v2-resolve.js
+          node --check game/childhood-v3-resolve.js
+          node --check game/relationship-continuity.js
           node --check game/family-enhancer.js
           node --check game/life-enhancer.js
           node --check game/psychology.js
@@ -45,6 +48,7 @@ jobs:
           node --check tests/psychology-phase3-smoke.mjs
           node --check tests/early-childhood-variety-smoke.mjs
           node --check tests/friendship-continuity-smoke.mjs
+          node --check tests/relationship-continuity-v2-smoke.mjs
       - name: Smoke test living household
         run: node tests/realism-smoke.mjs
       - name: Smoke test contextual life loop
@@ -63,5 +67,7 @@ jobs:
         run: node tests/early-childhood-variety-smoke.mjs
       - name: Smoke test friendship continuity
         run: node tests/friendship-continuity-smoke.mjs
+      - name: Smoke test relationship continuity v2
+        run: node tests/relationship-continuity-v2-smoke.mjs
       - name: Simulate 100 school-age lives
         run: node tests/school-social-100-life.mjs
