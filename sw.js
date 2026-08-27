@@ -1,12 +1,12 @@
-const CACHE = "little-days-v4";
+const CACHE = "little-days-v5";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./setup.css",
-  "./bootstrap.js",
-  "./app.js",
-  "./game/engine.js",
+  "./styles.css?v=6",
+  "./setup.css?v=6",
+  "./bootstrap.js?v=6",
+  "./app.js?v=6",
+  "./game/engine.js?v=6",
   "./game/content.js",
   "./game/callbacks.js",
   "./manifest.webmanifest",
@@ -30,17 +30,31 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
 
-      return fetch(event.request)
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+          caches.open(CACHE).then((cache) => cache.put("./index.html", copy));
           return response;
         })
-        .catch(() => caches.match("./index.html"));
-    }),
+        .catch(() => caches.match("./index.html")),
+    );
+    return;
+  }
+
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request)),
   );
 });
