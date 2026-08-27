@@ -63,6 +63,11 @@ function baseState(ageMonths = 6) {
   const event = contextualEventForState(state);
   assert.match(event.id, /context_thread_job_loss_0/);
   assert.match(event.body, /job|money/i);
+  assert.deepEqual(event.choices.map((item) => item.label), [
+    "Ask what this means for home",
+    "Be flexible about a few small wants",
+    "Keep your normal school routine",
+  ]);
   resolveContextualChoice(state, event.choices[0].id);
   assert.equal(state.contextual.activeThread.stage, 1);
 
@@ -71,6 +76,44 @@ function baseState(ageMonths = 6) {
   const followup = contextualEventForState(state);
   assert.match(followup.id, /context_thread_job_loss_1/);
   assert.match(followup.body, /choices|purchases|money/i);
+}
+
+{
+  const state = baseState(108);
+  const text = "Lola Rosa has developed a health problem that now requires more appointments and rest than before.";
+  state.realism.latest = [{ category: "Family", text, importance: 4, ageMonths: 108, personId: "lola" }];
+  state.realism.birthday = { age: 9, items: [text, "School has been mixed this year."] };
+
+  const beforeCloseness = state.people.find((person) => person.id === "lola").closeness;
+  const event = contextualEventForState(state);
+  assert.equal(event.threadType, "family_health");
+  assert.match(event.prompt, /Lola Rosa.*unwell/i);
+  assert.deepEqual(event.choices.map((item) => item.label), [
+    "Ask Lola Rosa how they are feeling",
+    "Help with a small chore",
+    "Spend some quiet time with Lola Rosa",
+  ]);
+  assert.equal(state.realism.latest.length, 0, "active major event should not repeat in Around You");
+  assert.deepEqual(state.realism.birthday.items, ["School has been mixed this year."], "active major event should not repeat in the birthday recap");
+
+  resolveContextualChoice(state, "small-help");
+  assert.equal(state.people.find((person) => person.id === "lola").closeness, beforeCloseness + 2);
+  assert.equal(state.contextual.activeThread.stage, 1);
+  assert.match(state.resolution.result, /small task|responsible/i);
+}
+
+{
+  const state = baseState(108);
+  const text = "Isabel and Carlo have decided to separate. The practical details are still being worked out, and home no longer feels arranged the same way.";
+  state.realism.latest = [{ category: "Family", text, importance: 5, ageMonths: 108, personId: "mom" }];
+  const event = contextualEventForState(state);
+  assert.equal(event.threadType, "separation");
+  assert.deepEqual(event.choices.map((item) => item.label), [
+    "Ask where everyone will live",
+    "Tell someone you are worried",
+    "Keep one familiar routine steady",
+  ]);
+  assert.equal(state.realism.latest.length, 0);
 }
 
 {
