@@ -32,6 +32,7 @@ function loadState() {
 
 let state = loadState();
 let toastTimer;
+let initialized = false;
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -465,7 +466,12 @@ function showToast(message) {
   toastTimer = setTimeout(() => toast.remove(), 2200);
 }
 
-function initializeApp() {
+export function initializeApp() {
+  if (initialized) {
+    render();
+    return;
+  }
+  initialized = true;
   saveState();
   render();
 
@@ -482,9 +488,6 @@ function initializeApp() {
 
 window.addEventListener("hashchange", render);
 
-// app.js is often imported after the page has already finished loading (for example
-// after pressing Begin on the birth introduction). In that case DOMContentLoaded has
-// already happened, so waiting for it would leave the app stuck on "Opening your life…".
 if (document.readyState === "loading") {
   window.addEventListener("DOMContentLoaded", initializeApp, { once: true });
 } else {
