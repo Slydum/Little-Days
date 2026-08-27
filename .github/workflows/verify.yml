@@ -21,18 +21,22 @@ jobs:
           node --check game/engine-v26.js
           node --check game/engine-v27.js
           node --check game/engine-v28.js
+          node --check game/engine-v29.js
           node --check game/content.js
           node --check game/callbacks.js
           node --check game/realism.js
           node --check game/contextual-events.js
+          node --check game/contextual-events-v2.js
           node --check game/household-membership.js
           node --check game/childhood-v2.js
           node --check game/childhood-v3.js
           node --check game/childhood-v4.js
           node --check game/childhood-v5.js
+          node --check game/childhood-v6.js
           node --check game/childhood-v2-resolve.js
           node --check game/childhood-v3-resolve.js
           node --check game/childhood-v4-resolve.js
+          node --check game/childhood-v5-resolve.js
           node --check game/relationship-continuity.js
           node --check game/school-coherence.js
           node --check game/family-enhancer.js
@@ -40,6 +44,7 @@ jobs:
           node --check game/psychology.js
           node --check game/psychology-phase2.js
           node --check game/psychology-phase3.js
+          node --check game/psychology-events.js
           node --check game/psychology-phase3-loader.js
           node --check tests/realism-smoke.mjs
           node --check tests/contextual-events-smoke.mjs
@@ -49,6 +54,7 @@ jobs:
           node --check tests/psychology-phase1-smoke.mjs
           node --check tests/psychology-phase2-smoke.mjs
           node --check tests/psychology-phase3-smoke.mjs
+          node --check tests/psychology-events-smoke.mjs
           node --check tests/early-childhood-variety-smoke.mjs
           node --check tests/friendship-continuity-smoke.mjs
           node --check tests/relationship-continuity-v2-smoke.mjs
@@ -67,6 +73,8 @@ jobs:
         run: node tests/psychology-phase2-smoke.mjs
       - name: Smoke test psychological development phase 3
         run: node tests/psychology-phase3-smoke.mjs
+      - name: Smoke test psychology-aware events
+        run: node tests/psychology-events-smoke.mjs
       - name: Smoke test early-childhood variety
         run: node tests/early-childhood-variety-smoke.mjs
       - name: Smoke test friendship continuity
