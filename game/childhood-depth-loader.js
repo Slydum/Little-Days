@@ -62,12 +62,12 @@ function renderProfileDepth() {
   if (!screen || screen.dataset.depthProfileFor === personId) return;
   const state = readState();
   if (!state) return;
-  const before = JSON.stringify(state.childhoodDepth || null);
   ensureChildhoodDepth(state);
   const snapshot = npcKnowledgeSnapshot(state, personId);
   if (!snapshot) return;
-  const after = JSON.stringify(state.childhoodDepth || null);
-  if (before !== after) writeState(state);
+  // ensureChildhoodDepth can discover or initialize person-specific identity data as time passes.
+  // Persist the whole state, not just the depth root, so those discoveries survive navigation/reload.
+  writeState(state);
   installStyles(screen);
 
   const sections = [...screen.querySelectorAll(".profile-section")];
