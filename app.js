@@ -75,7 +75,7 @@ function brand(title = "") {
 }
 
 function bottomNav(route) {
-  const activeRoot = ["home", "school", "overview", "health"].includes(route) ? "more" : route;
+  const activeRoot = route.startsWith("person/") ? "people" : (["home", "school", "overview", "health"].includes(route) ? "more" : route);
   return `<nav class="bottom-nav" aria-label="Primary">${navItems.map(([key,label])=>`<button class="nav-button ${activeRoot===key?"active":""}" data-route="${key}" aria-label="${label}">${icons[key]}<span>${label}</span></button>`).join("")}</nav>`;
 }
 
@@ -101,17 +101,7 @@ function aroundYouBlock() {
 function lifeScreen() {
   if (state.death) {
     const summary = deathSummary(state);
-    return shell(`
-      ${brand()}
-      <h1 class="age-title">${getAgeLabel(state)}</h1>
-      <p class="date-line">${formatGameDate(state)}</p>
-      <div class="eyebrow">${icons.memories} Life ended</div>
-      <h2 class="event-title">${summary.title}</h2>
-      <p class="event-copy">${summary.copy}</p>
-      <div class="divider"></div>
-      <p class="body-note">Cause: ${summary.cause}.</p>
-      <button class="utility-button" data-new-life>Begin another life</button>
-    `,"life");
+    return shell(`${brand()}<h1 class="age-title">${getAgeLabel(state)}</h1><p class="date-line">${formatGameDate(state)}</p><div class="eyebrow">${icons.memories} Life ended</div><h2 class="event-title">${summary.title}</h2><p class="event-copy">${summary.copy}</p><div class="divider"></div><p class="body-note">Cause: ${summary.cause}.</p><button class="utility-button" data-new-life>Begin another life</button>`,"life");
   }
 
   if (state.completed) {
@@ -142,16 +132,52 @@ function lifeScreen() {
   `,"life");
 }
 
+function personRole(person) {
+  return person.relationshipLabel || ({guardian:"Parent / Guardian",secondGuardian:"Parent / Guardian",grandmother:"Grandmother",grandfather:"Grandfather",sibling:"Sibling",aunt:"Aunt",uncle:"Uncle",cousin:"Cousin",friend:"Friend"})[person.role] || "Relationship";
+}
+
 function peopleScreen() {
-  const roleLabel = { guardian:"Parent / Guardian", secondGuardian:"Parent / Guardian", grandmother:"Grandmother", sibling:"Sibling", friend:"Friend" };
   const age = getAgeYears(state);
   const people = getVisiblePeople(state);
   return shell(`${brand("People")}<div class="people-list">${people.map(person=>{
     const relation = person.deceased ? "Remembered" : relationshipLabel(person);
     const copy = person.deceased ? (person.npc?.currentThread || `${person.name} is no longer alive.`) : relationshipCopy(person);
     const meta = person.deceased ? `Died at age ${person.diedAtAge}` : person.role==="friend" ? `Known for — ${Math.max(0,age-5)} year${Math.max(0,age-5)===1?"":"s"}` : `Age — ${person.age+age}`;
-    return `<article class="person-card"><div class="avatar" aria-hidden="true">${person.name[0]}</div><div><h2 class="person-name">${person.name}</h2><p class="person-role">${roleLabel[person.role]||"Relationship"} — ${relation}</p><p class="person-copy">${copy}</p><p class="person-meta">${meta}</p></div></article>`;
+    return `<button class="person-card person-card-button" data-person-id="${person.id}"><div class="avatar" aria-hidden="true">${person.name[0]}</div><div><h2 class="person-name">${person.name}</h2><p class="person-role">${personRole(person)} — ${relation}</p><p class="person-copy">${copy}</p><p class="person-meta">${meta} · View profile</p></div></button>`;
   }).join("")}</div>`,"people");
+}
+
+function levelWord(value, low, mid, high) {
+  if (value >= 72) return high;
+  if (value >= 45) return mid;
+  return low;
+}
+
+function personProfileScreen(id) {
+  const person = (state.people || []).find(item => item.id === id);
+  if (!person) return shell(`${brand("People")}<p class="body-note">This person is not part of your known world yet.</p><button class="utility-button" data-route="people">Back to people</button>`,"people");
+  const age = getAgeYears(state);
+  const realism = person.npc?.realism || {};
+  const social = person.npc?.socialWorld ?? 50;
+  const patience = 100 - (person.conflict ?? 20);
+  const steadiness = 100 - (person.npc?.outsideStress ?? 35);
+  const warmth = Math.round(((person.affection ?? 60) + (person.closeness ?? 55)) / 2);
+  const personality = [
+    ["Social style", levelWord(social,"Private","Balanced","Outgoing")],
+    ["Warmth", levelWord(warmth,"Reserved","Warm","Very affectionate")],
+    ["Patience", levelWord(patience,"Quick-tempered","Usually patient","Very patient")],
+    ["Steadiness", levelWord(steadiness,"Easily stressed","Steady","Very calm")],
+  ];
+  const work = realism.employment?.status ? realism.employment.status.replace("-"," ") : null;
+  const current = person.npc?.currentThread || (person.deceased ? "They are remembered as part of your life." : relationshipCopy(person));
+  const relation = person.deceased ? "Remembered" : relationshipLabel(person);
+  const currentAge = person.deceased ? `Died at age ${person.diedAtAge}` : `Age ${person.age + age}`;
+  const history = [...(person.history || [])].slice(-4).reverse();
+  const styles = `<style>
+    .person-card-button{width:100%;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}
+    .person-profile-head{text-align:center;padding:5px 0 12px}.profile-avatar{width:72px;height:72px;margin:0 auto 10px;border:1px solid var(--line-strong);border-radius:999px;display:grid;place-items:center;font-family:var(--serif);font-size:32px;background:#f4efe5}.profile-name{margin:0;font-family:var(--serif);font-size:27px;font-weight:500}.profile-role{margin:4px 0;color:var(--muted);font-size:12px}.profile-back{border:0;background:transparent;padding:4px 0 12px;color:var(--sage);font-size:12px;cursor:pointer}.profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 16px}.profile-fact{border-top:1px solid var(--line);padding:9px 0}.profile-fact span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.profile-fact strong{display:block;margin-top:2px;font-family:var(--serif);font-size:15px;font-weight:500}.personality-row{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding:9px 0;font-size:12px}.personality-row:last-child{border-bottom:1px solid var(--line)}.personality-row strong{font-weight:500;text-align:right}.profile-section{margin-top:18px}.profile-section h2{margin:0 0 6px;font-family:var(--serif);font-size:18px;font-weight:500}.profile-section p{margin:0;font-size:12px;line-height:1.5}
+  </style>`;
+  return shell(`${styles}<button class="profile-back" data-route="people">‹ People</button>${brand()}<div class="person-profile-head"><div class="profile-avatar">${person.name[0]}</div><h1 class="profile-name">${person.name}</h1><p class="profile-role">${personRole(person)} · ${relation}</p></div><div class="profile-grid"><div class="profile-fact"><span>Age</span><strong>${currentAge}</strong></div><div class="profile-fact"><span>Sex</span><strong>${person.sex || "Unknown"}</strong></div><div class="profile-fact"><span>Interest</span><strong>${realism.interest || "Not known yet"}</strong></div><div class="profile-fact"><span>Work</span><strong>${work || (person.role==="sibling"||person.role==="cousin" ? "Child" : "Not known")}</strong></div></div><section class="profile-section"><h2>Personality</h2>${personality.map(([label,value])=>`<div class="personality-row"><span>${label}</span><strong>${value}</strong></div>`).join("")}</section><section class="profile-section"><h2>Your relationship</h2><p>${current}</p><div class="profile-grid"><div class="profile-fact"><span>Closeness</span><strong>${levelWord(person.closeness ?? 50,"Distant","Growing","Very close")}</strong></div><div class="profile-fact"><span>Trust</span><strong>${levelWord(person.trust ?? 50,"Low","Developing","Strong")}</strong></div></div></section>${realism.health?`<section class="profile-section"><h2>Life lately</h2><p>${realism.health < 45 ? "Their health has been difficult lately." : realism.mental < 45 ? "They seem to be carrying a lot emotionally." : "Their life seems fairly steady at the moment."}${realism.interest?` They are interested in ${realism.interest}.`:""}</p></section>`:""}${history.length?`<section class="profile-section"><h2>Shared history</h2>${history.map(item=>`<p style="margin-bottom:8px">${item.note || item.text || item.result || "A moment you shared became part of your history."}</p>`).join("")}</section>`:""}`,`person/${id}`);
 }
 
 function selfScreen() {
@@ -192,12 +218,19 @@ function moreScreen() {
 
 const screens={life:lifeScreen,people:peopleScreen,self:selfScreen,memories:memoriesScreen,more:moreScreen,home:homeScreen,school:schoolScreen,health:healthScreen,overview:overviewScreen};
 
-function render(){ensureRealismState(state);const route=getRoute(),screen=screens[route]||screens.life;document.querySelector("#app").innerHTML=screen();bindEvents()}
+function render(){
+  ensureRealismState(state);
+  const route=getRoute();
+  const screen=route.startsWith("person/") ? ()=>personProfileScreen(decodeURIComponent(route.slice(7))) : (screens[route]||screens.life);
+  document.querySelector("#app").innerHTML=screen();
+  bindEvents();
+}
 
 function startNewLife(){if(!window.confirm("Begin a different life? Your current childhood will be replaced."))return;state=ensureRealismState(createNewLife());saveState();location.hash="life";render();showToast(`A new life begins. Meet ${state.character.firstName}.`)}
 
 function bindEvents(){
   document.querySelectorAll("[data-route]").forEach(button=>button.addEventListener("click",()=>{const route=button.dataset.route;if(route!==getRoute())location.hash=route}));
+  document.querySelectorAll("[data-person-id]").forEach(button=>button.addEventListener("click",()=>{location.hash=`person/${encodeURIComponent(button.dataset.personId)}`}));
   document.querySelectorAll("[data-choice]").forEach(button=>button.addEventListener("click",()=>{resolveChoice(state,button.dataset.choice);saveState();render();showToast("Choice remembered.")}));
   document.querySelector("#continue-life")?.addEventListener("click",()=>{const before=state.character.ageMonths;continueLife(state);const elapsed=Math.max(0,state.character.ageMonths-before);advanceRealism(state,elapsed,before);saveState();render();window.scrollTo({top:0,behavior:"smooth"})});
   document.querySelectorAll("[data-new-life]").forEach(button=>button.addEventListener("click",startNewLife));
