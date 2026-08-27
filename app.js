@@ -359,13 +359,92 @@ function render(){
 
 function startNewLife(){if(!window.confirm("Begin a different life? Your current childhood will be replaced."))return;state=ensureChildhoodState(syncHouseholdMembership(ensureRealismState(createNewLife())));saveState();location.hash="life";render();showToast(`A new life begins. Meet ${state.character.firstName}.`)}
 
+function continueCurrentLife(){
+  const before=state.character.ageMonths;
+  continueLife(state);
+  const elapsed=Math.max(0,state.character.ageMonths-before);
+  advanceChildhoodWorld(state,elapsed,before);
+  advanceRealism(state,elapsed,before);
+  syncHouseholdMembership(state);
+  saveState();
+  render();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function bindContinueButton(){
+  const button=document.querySelector("#continue-life");
+  if(button&&!button.dataset.bound){
+    button.dataset.bound="true";
+    button.addEventListener("click",continueCurrentLife,{once:true});
+  }
+}
+
+function updateLifeIndicators(){
+  const indicators=lifeIndicators(state);
+  const copies=document.querySelectorAll(".status-strip .status-copy");
+  const values=[
+    ["Wellbeing",indicators.wellbeing],
+    ["Energy",indicators.energy],
+    ["Stress",indicators.stress],
+  ];
+  copies.forEach((copy,index)=>{
+    const item=values[index];
+    if(item) copy.innerHTML=`<strong>${item[0]}</strong>${item[1]}`;
+  });
+}
+
+function updateChoiceResolution(button){
+  const choices=button.closest(".choices");
+  if(!choices||!state.resolution){
+    render();
+    return;
+  }
+
+  const selectedId=state.resolution.choiceId;
+  choices.querySelectorAll(".choice-button").forEach((choiceButton)=>{
+    const id=choiceButton.dataset.childhoodChoice||choiceButton.dataset.contextChoice||choiceButton.dataset.choice;
+    const selected=id===selectedId;
+    choiceButton.disabled=true;
+    choiceButton.classList.toggle("primary",selected);
+    choiceButton.setAttribute("aria-pressed",String(selected));
+  });
+
+  let resultCard=choices.nextElementSibling;
+  if(!resultCard||!resultCard.classList.contains("result-card")){
+    resultCard=document.createElement("div");
+    resultCard.className="result-card";
+    choices.insertAdjacentElement("afterend",resultCard);
+  }
+  resultCard.innerHTML=state.resolution.result||"Your choice becomes part of what happens next.";
+
+  let continueButton=resultCard.nextElementSibling;
+  if(!continueButton||continueButton.id!=="continue-life"){
+    continueButton=document.createElement("button");
+    continueButton.className="utility-button";
+    continueButton.id="continue-life";
+    continueButton.textContent="Continue";
+    resultCard.insertAdjacentElement("afterend",continueButton);
+  }
+
+  updateLifeIndicators();
+  bindContinueButton();
+}
+
+function applyChoice(button,resolver,choiceId){
+  if(button.disabled||state.resolution)return;
+  resolver(state,choiceId);
+  saveState();
+  updateChoiceResolution(button);
+  showToast("Choice remembered.");
+}
+
 function bindEvents(){
   document.querySelectorAll("[data-route]").forEach(button=>button.addEventListener("click",()=>{const route=button.dataset.route;if(route!==getRoute())location.hash=route}));
   document.querySelectorAll("[data-person-id]").forEach(button=>button.addEventListener("click",()=>{location.hash=`person/${encodeURIComponent(button.dataset.personId)}`}));
-  document.querySelectorAll("[data-childhood-choice]").forEach(button=>button.addEventListener("click",()=>{resolveChildhoodChoice(state,button.dataset.childhoodChoice);saveState();render();showToast("Choice remembered.")}));
-  document.querySelectorAll("[data-context-choice]").forEach(button=>button.addEventListener("click",()=>{resolveContextualChoice(state,button.dataset.contextChoice);saveState();render();showToast("Choice remembered.")}));
-  document.querySelectorAll("[data-choice]").forEach(button=>button.addEventListener("click",()=>{resolveChoice(state,button.dataset.choice);saveState();render();showToast("Choice remembered.")}));
-  document.querySelector("#continue-life")?.addEventListener("click",()=>{const before=state.character.ageMonths;continueLife(state);const elapsed=Math.max(0,state.character.ageMonths-before);advanceChildhoodWorld(state,elapsed,before);advanceRealism(state,elapsed,before);syncHouseholdMembership(state);saveState();render();window.scrollTo({top:0,behavior:"smooth"})});
+  document.querySelectorAll("[data-childhood-choice]").forEach(button=>button.addEventListener("click",()=>applyChoice(button,resolveChildhoodChoice,button.dataset.childhoodChoice)));
+  document.querySelectorAll("[data-context-choice]").forEach(button=>button.addEventListener("click",()=>applyChoice(button,resolveContextualChoice,button.dataset.contextChoice)));
+  document.querySelectorAll("[data-choice]").forEach(button=>button.addEventListener("click",()=>applyChoice(button,resolveChoice,button.dataset.choice)));
+  bindContinueButton();
   document.querySelectorAll("[data-new-life]").forEach(button=>button.addEventListener("click",startNewLife));
 }
 
