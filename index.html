@@ -7,55 +7,56 @@
     <meta name="description" content="Little Days — a quiet, story-first life simulation." />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=7" />
-    <link rel="stylesheet" href="./setup.css?v=7" />
+    <link rel="stylesheet" href="./styles.css?v=8" />
+    <link rel="stylesheet" href="./setup.css?v=8" />
     <title>Little Days</title>
   </head>
   <body>
     <main id="app" class="app-shell" aria-live="polite">
+      <!-- Render the first screen as real HTML, not a JavaScript loading state.
+           bootstrap.js enhances/replaces this once it runs. This means a script or
+           cache problem can never strand the player on an eternal Loading screen. -->
       <section class="setup-screen">
         <div class="setup-header">
           <p class="brand">Little Days</p>
-          <h1>Loading…</h1>
-          <p>Your life is being found.</p>
+          <h1>Begin a life</h1>
+          <p>Every life starts with things you choose and things you don't.</p>
         </div>
+
+        <div class="setup-options">
+          <button class="setup-option" id="random-life" type="button">
+            <strong>Random life</strong>
+            <span>Let everything be generated, including your character.</span>
+          </button>
+          <button class="setup-option" id="custom-life" type="button">
+            <strong>Custom character</strong>
+            <span>Choose your character's identity. Their family, money, home, birthplace, temperament, and circumstances are still generated.</span>
+          </button>
+        </div>
+
+        <p class="setup-footnote">You can choose the person. You cannot choose the life waiting for them.</p>
       </section>
     </main>
-    <noscript>Little Days needs JavaScript enabled to run.</noscript>
 
+    <noscript>
+      <div style="padding:20px;text-align:center">Little Days needs JavaScript enabled to begin a life.</div>
+    </noscript>
+
+    <!-- No service-worker manipulation here. The previous recovery code could throw
+         before startup on some Safari versions. Keep the entrypoint deliberately dull. -->
+    <script src="./bootstrap.js?v=8"></script>
     <script>
-      window.__littleDaysBooted = false;
-
-      // Little Days is still changing rapidly. Retire old service workers so a stale
-      // offline cache cannot keep serving yesterday's JavaScript to today's page.
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function (registrations) {
-          registrations.forEach(function (registration) {
-            registration.unregister();
-          });
-        }).catch(function () {});
-      }
-
-      // If the main startup script does not execute, do not leave the player staring
-      // at an eternal loading screen. Give them a useful recovery action instead.
       window.setTimeout(function () {
         if (window.__littleDaysBooted) return;
-        var app = document.getElementById("app");
-        if (!app) return;
-        app.innerHTML = '<section class="setup-screen"><div class="setup-header"><p class="brand">Little Days</p><h1>Still loading?</h1><p>Your browser is holding an older game file. Refreshing once should clear it.</p></div><button class="setup-primary" id="force-fresh-load">Load the latest version</button></section>';
-        var button = document.getElementById("force-fresh-load");
-        if (button) {
-          button.addEventListener("click", function () {
-            var url = new URL(window.location.href);
-            url.searchParams.set("fresh", Date.now().toString());
-            window.location.replace(url.toString());
-          });
+        var note = document.createElement("p");
+        note.style.cssText = "margin:18px auto 0;max-width:330px;text-align:center;color:#9b665d;font-size:12px;line-height:1.5";
+        note.textContent = "The game script did not start. Reload this page once. If this message remains, Safari is serving an older cached file.";
+        var screen = document.querySelector(".setup-screen");
+        if (screen && !document.getElementById("startup-failed-note")) {
+          note.id = "startup-failed-note";
+          screen.appendChild(note);
         }
-      }, 1800);
+      }, 2000);
     </script>
-
-    <!-- Classic + defer is intentionally used here instead of a module entrypoint.
-         The game itself can still load ES modules dynamically after startup. -->
-    <script defer src="./bootstrap.js?v=7"></script>
   </body>
 </html>
