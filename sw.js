@@ -1,4 +1,4 @@
-const CACHE = "little-days-v2";
+const CACHE = "little-days-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -6,6 +6,7 @@ const APP_SHELL = [
   "./app.js",
   "./game/engine.js",
   "./game/content.js",
+  "./game/callbacks.js",
   "./manifest.webmanifest",
   "./icon.svg",
 ];
