@@ -12,9 +12,9 @@ function illnessSeverity(items) {
   return items.reduce((highest, illness) => Math.max(highest, Number(illness?.severity) || 2), 0);
 }
 
-function addSchoolAbsence(state, severity) {
+export function applyIllnessSchoolAbsence(state, severity = 2) {
   const school = state.childhood?.school;
-  if (!school?.started || (state.character?.ageMonths || 0) < 60) return;
+  if (!school?.started || (state.character?.ageMonths || 0) < 60) return state;
 
   const attendanceDrop = severity >= 3 ? 5 : 2;
   school.attendance = clamp((school.attendance ?? 96) - attendanceDrop, 65, 100);
@@ -47,6 +47,7 @@ function addSchoolAbsence(state, severity) {
     state.worldEvents.push({ ...item, note: text, source: "illness-coherence" });
     state.worldEvents = state.worldEvents.slice(-100);
   }
+  return state;
 }
 
 /**
@@ -108,6 +109,6 @@ export function advanceRealism(state, elapsedMonths, beforeAgeMonths) {
 
   normalizeRepeatedIllness(next);
 
-  if (affectedThisTurn && !next.death) addSchoolAbsence(next, severity);
+  if (affectedThisTurn && !next.death) applyIllnessSchoolAbsence(next, severity);
   return next;
 }
