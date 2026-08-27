@@ -25,6 +25,7 @@ import {
   getBirthdayRecap,
   healthSnapshot,
 } from "./game/realism.js";
+import { contextualEventForState, resolveContextualChoice } from "./game/contextual-events.js";
 
 const STORAGE_KEY = "little-days-save-v2";
 
@@ -110,9 +111,11 @@ function lifeScreen() {
     return shell(`${brand()}<h1 class="age-title">Age 13</h1><p class="date-line">${formatGameDate(state)}</p><div class="eyebrow">${icons.memories} Childhood complete</div><h2 class="event-title">${summary.title}</h2><p class="event-copy">${summary.copy}</p><div class="divider"></div><p class="body-note">This is the end of the current childhood MVP. Adolescence is deliberately not simulated yet.</p><button class="utility-button" data-new-life>Begin another life</button>`,"life");
   }
 
-  const event = getCurrentEvent(state);
+  const contextualEvent = contextualEventForState(state);
+  const event = contextualEvent || getCurrentEvent(state);
   const indicators = lifeIndicators(state);
   const resolvedChoice = state.resolution?.choiceId;
+  const choiceAttribute = contextualEvent ? "data-context-choice" : "data-choice";
   return shell(`
     ${brand()}
     <h1 class="age-title">${getAgeLabel(state)}</h1>
@@ -128,7 +131,7 @@ function lifeScreen() {
     <p class="event-copy">${event.body}</p>
     <div class="divider"></div>
     <p class="prompt">${event.prompt}</p>
-    <div class="choices">${event.choices.map(choice=>`<button class="choice-button ${resolvedChoice===choice.id?"primary":""}" data-choice="${choice.id}" ${state.resolution?"disabled":""} aria-pressed="${resolvedChoice===choice.id}">${choice.label}</button>`).join("")}</div>
+    <div class="choices">${event.choices.map(choice=>`<button class="choice-button ${resolvedChoice===choice.id?"primary":""}" ${choiceAttribute}="${choice.id}" ${state.resolution?"disabled":""} aria-pressed="${resolvedChoice===choice.id}">${choice.label}</button>`).join("")}</div>
     ${state.resolution?`<div class="result-card">${state.resolution.result}</div><button class="utility-button" id="continue-life">Continue</button>`:""}
   `,"life");
 }
@@ -337,6 +340,7 @@ function startNewLife(){if(!window.confirm("Begin a different life? Your current
 function bindEvents(){
   document.querySelectorAll("[data-route]").forEach(button=>button.addEventListener("click",()=>{const route=button.dataset.route;if(route!==getRoute())location.hash=route}));
   document.querySelectorAll("[data-person-id]").forEach(button=>button.addEventListener("click",()=>{location.hash=`person/${encodeURIComponent(button.dataset.personId)}`}));
+  document.querySelectorAll("[data-context-choice]").forEach(button=>button.addEventListener("click",()=>{resolveContextualChoice(state,button.dataset.contextChoice);saveState();render();showToast("Choice remembered.")}));
   document.querySelectorAll("[data-choice]").forEach(button=>button.addEventListener("click",()=>{resolveChoice(state,button.dataset.choice);saveState();render();showToast("Choice remembered.")}));
   document.querySelector("#continue-life")?.addEventListener("click",()=>{const before=state.character.ageMonths;continueLife(state);const elapsed=Math.max(0,state.character.ageMonths-before);advanceRealism(state,elapsed,before);saveState();render();window.scrollTo({top:0,behavior:"smooth"})});
   document.querySelectorAll("[data-new-life]").forEach(button=>button.addEventListener("click",startNewLife));
