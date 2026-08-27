@@ -38,7 +38,10 @@ function personById(state, id) {
 }
 
 function firstName(person, fallback = "someone in your family") {
-  return person?.name?.split(" ")[0] || fallback;
+  const parts = String(person?.name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return fallback;
+  const honorifics = new Set(["Lola", "Lolo", "Auntie", "Uncle", "Tita", "Tito"]);
+  return honorifics.has(parts[0]) && parts[1] ? `${parts[0]} ${parts[1]}` : parts[0];
 }
 
 function recentIllnessUpdate(state) {
@@ -73,6 +76,23 @@ function relationshipEffect(person, key, delta) {
 
 function compactEffects(...effects) {
   return effects.filter(Boolean);
+}
+
+function favoritePossession(state) {
+  const items = state.possessions?.items || [];
+  return [...items].filter((item) => !item.givenAway).sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0) || (b.usedCount || 0) - (a.usedCount || 0))[0] || null;
+}
+
+function practiceChoice(state) {
+  const item = favoritePossession(state);
+  if (!item?.hobby || (state.character?.ageMonths || 0) < 30) return null;
+  const verb = ({ drawing: "draw", reading: "read", music: "practice music", making: "make something", gardening: "help with plants", cooking: "help cook", gaming: "play" })[item.hobby] || `practice ${item.hobby}`;
+  return {
+    id: "practice",
+    label: `${verb[0].toUpperCase()}${verb.slice(1)} with ${item.name}`,
+    result: `You spend part of the evening with ${item.name}. Repetition makes the activity feel a little more like yours.`,
+    effects: [{ type: "practice", itemId: item.id, hobby: item.hobby, delta: 2 }, { type: "health", key: "stress", delta: -1 }],
+  };
 }
 
 function infantChoices(state, tone = "change") {
@@ -117,6 +137,20 @@ function childChoices(state, type, stage, person) {
     { id: "near", label: "Stay near someone familiar", result: "You do not solve anything. You simply choose not to be alone with it.", effects: compactEffects(relationshipEffect(caregiver, "closeness", 2), relationshipEffect(person, "closeness", 1), { type: "health", key: "stress", delta: -1 }) },
   ];
 
+  if (type === "affair") {
+    if ((state.character?.ageMonths || 0) < 84) {
+      return [
+        { id: "ask", label: "Ask why everyone is upset", result: "An adult gives you a smaller, age-appropriate version of the truth. You still do not understand all of it, but at least the tension has a shape.", effects: close },
+        { id: "near", label: "Stay close to someone you trust", result: "You stay near a familiar person while adult voices and moods move around you.", effects: compactEffects(relationshipEffect(caregiver, "closeness", 3), { type: "health", key: "stress", delta: -2 }) },
+        { id: "quiet", label: "Go somewhere quieter", result: "You move toward toys, books, or another room and let the adults' problem remain an adult problem for a while.", effects: [{ type: "personality", key: "independence", delta: 1 }, { type: "health", key: "stress", delta: -1 }] },
+      ];
+    }
+    return [
+      { id: "ask", label: "Ask what actually happened", result: "You ask directly. The answer is uncomfortable, but it is clearer than piecing the story together from arguments and silences.", effects: close },
+      { id: "feel", label: "Tell someone how it is affecting you", result: "You make the conversation include the fact that the adults' relationship is changing your home too.", effects: compactEffects(relationshipEffect(caregiver, "trust", 3), { type: "health", key: "stress", delta: -2 }) },
+      { id: "quiet", label: "Stay out of the adult conflict", result: "You decide that understanding every detail is not the same thing as being responsible for fixing any of it.", effects: [{ type: "personality", key: "independence", delta: 2 }] },
+    ];
+  }
   if (type === "job_loss" && stage > 0) {
     return [
       { id: "understand", label: "Ask what the family can still afford", result: "The answer is not a full household budget, but you begin to understand why some choices are changing.", effects: close },
@@ -132,9 +166,10 @@ function childChoices(state, type, stage, person) {
     ];
   }
   if (type === "move" && stage > 0) {
+    const item = favoritePossession(state);
     return [
       { id: "explore", label: "Learn the new neighborhood", result: "Routes that felt unfamiliar begin turning into places you recognize.", effects: [{ type: "personality", key: "curiosity", delta: 2 }, { type: "personality", key: "risk", delta: 1 }] },
-      { id: "room", label: "Make your space feel like yours", result: "A few familiar objects and routines make the new room stop feeling temporary.", effects: [{ type: "personality", key: "structure", delta: 2 }, { type: "health", key: "stress", delta: -1 }] },
+      { id: "room", label: "Make your space feel like yours", result: item ? `You put ${item.name} somewhere that feels right. One familiar object makes the new room feel less temporary.` : "A few familiar objects and routines make the new room stop feeling temporary.", effects: [{ type: "personality", key: "structure", delta: 2 }, { type: "health", key: "stress", delta: -1 }] },
       { id: "old", label: "Keep thinking about the old home", result: "You compare the new place with the old one for a while. Familiarity takes longer than an address change.", effects: [{ type: "personality", key: "sensitivity", delta: 1 }] },
     ];
   }
@@ -214,6 +249,7 @@ function recoveryEvent(state) {
 
 const majorRules = [
   { type: "death", priority: 100, category: "Family", match: (text) => /\bdied\b|\bdeath\b/.test(text) },
+  { type: "affair", priority: 90, category: "Family", match: (text) => text.includes("outside their relationship") || text.includes("affair") || text.includes("unfaithful") },
   { type: "separation", priority: 82, category: "Family", match: (text) => text.includes("decided to separate") || text.includes("separate routine") },
   { type: "move", priority: 74, category: "Home", match: (text) => text.includes("family moves from") || text.includes("family move") },
   { type: "birth", priority: 70, category: "Family", match: (text) => text.includes(" is born") && text.includes("household") },
@@ -238,48 +274,62 @@ function syncMajorThread(state) {
     const classified = classifyMajorUpdate(item);
     if (!classified) return null;
     const sourceKey = `${item.ageMonths ?? state.character.ageMonths}|${item.category}|${item.text || item.note}`;
-    return { ...classified, sourceKey, personId: item.personId || null, ageMonths: item.ageMonths ?? state.character.ageMonths };
+    return { ...classified, sourceKey, personId: item.personId || null, relatedPersonId: item.relatedPersonId || null, ageMonths: item.ageMonths ?? state.character.ageMonths };
   }).filter(Boolean).sort((a, b) => b.priority - a.priority);
 
   const next = candidates.find((candidate) => !context.seen.includes(candidate.sourceKey));
   if (!next) return context.activeThread;
   if (!context.activeThread || next.priority > (context.activeThread.priority || 0)) {
-    context.activeThread = { ...next, stage: 0 };
+    context.activeThread = { ...next, stage: 0, lastChoiceId: null };
     context.seen.push(next.sourceKey);
     context.seen = context.seen.slice(-30);
   }
   return context.activeThread;
 }
 
+function choiceEcho(thread, who) {
+  const choice = thread.lastChoiceId;
+  if (!choice) return "";
+  if (["ask", "schedule", "understand"].includes(choice)) return `Because you asked questions, the adults start giving you more concrete answers instead of leaving you to guess. `;
+  if (["quiet", "private", "space"].includes(choice)) return `You kept more of your reaction to yourself. The adults do not always notice what you are carrying, so much of the adjustment happens privately. `;
+  if (["near", "miss", "feel", "thank"].includes(choice)) return `You chose closeness instead of pretending the change did not affect you. ${who} remembers that, and the next few days contain a little more checking in. `;
+  if (["normal", "routine", "play"].includes(choice)) return `You leaned on ordinary routines. They do not solve the problem, but they give the days somewhere familiar to land. `;
+  return "What you did in the first moment does not disappear when the scene ends. ";
+}
+
 function threadCopy(thread, person, stage) {
   const who = firstName(person, "someone in your family");
+  const echo = stage > 0 ? choiceEcho(thread, who) : "";
   const map = {
     death: stage === 0
       ? ["Someone is gone", thread.text || `${who} has died. The household changes immediately around an absence nobody chose.`]
-      : ["Their absence is part of the routine now", `The first shock has passed, but ${who}'s absence keeps appearing in ordinary places: meals, rooms, habits, and conversations that used to include them.`],
+      : ["Their absence is part of the routine now", `${echo}The first shock has passed, but ${who}'s absence keeps appearing in ordinary places: meals, rooms, habits, and conversations that used to include them.`],
+    affair: stage === 0
+      ? ["Something has broken between the adults", thread.text || `${who} has been involved with someone outside their relationship. The truth changes the mood of the household immediately.`]
+      : ["The argument did not end that night", `${echo}The adults are still deciding what the betrayal means for their relationship. Some conversations happen behind closed doors; others leak into ordinary family life.`],
     separation: stage === 0
       ? ["Your family is changing shape", thread.text || "The adults who were together have decided to separate. Home no longer has one obvious routine."]
-      : ["A different routine is taking shape", "The separation did not end after one conversation. Schedules, rooms, handoffs, and loyalties are slowly becoming part of everyday life."],
+      : ["A different routine is taking shape", `${echo}The separation did not end after one conversation. Schedules, rooms, handoffs, and loyalties are slowly becoming part of everyday life.`],
     move: stage === 0
       ? ["Your family moves", thread.text || "Your family leaves one home and starts living in another. Familiar routines suddenly happen in unfamiliar rooms."]
-      : ["The new place is becoming familiar", "You are starting to know which sounds belong to this home, where things are kept, and how the neighborhood fits together."],
+      : ["The new place is becoming familiar", `${echo}You are starting to know which sounds belong to this home, where things are kept, and how the neighborhood fits together.`],
     birth: stage === 0
       ? ["There is a new baby at home", thread.text || "A new baby has joined the household. Sleep, attention, noise, and routines all rearrange themselves around one very small person."]
-      : ["Life with the baby", "The baby is no longer a single big event. They are becoming part of the household's ordinary rhythm, including the inconvenient parts."],
+      : ["Life with the baby", `${echo}The baby is no longer a single big event. They are becoming part of the household's ordinary rhythm, including the inconvenient parts.`],
     job_loss: stage === 0
       ? ["Work disappears", thread.text || `${who} has lost their job. The adults start talking more carefully about money and what can wait.`]
-      : ["Money feels tighter", "The job loss is still affecting ordinary choices. Some purchases are delayed, some plans get smaller, and adults notice prices more than before."],
+      : ["Money feels tighter", `${echo}The job loss is still affecting ordinary choices. Some purchases are delayed, some plans get smaller, and adults notice prices more than before.`],
     caregiver_change: stage === 0
-      ? ["Someone else is caring for you more", thread.text || `${who} has started handling more of your everyday care. Familiar routines begin reorganizing around a different person.`]
-      : ["A new caregiving rhythm", "The change is becoming normal. The person who wakes you, feeds you, helps you, or waits for you is not always the same person who did before."],
+      ? [`${who} is caring for you more`, thread.text || `${who} has started handling more of your everyday care. Familiar routines begin reorganizing around a different person.`]
+      : [`You are getting used to ${who}'s routine`, `${echo}${who} is now the person doing more of the waking, feeding, helping, waiting, or bedtime routines. The change is becoming familiar rather than disappearing.`],
     family_health: stage === 0
-      ? ["Someone at home is unwell", thread.text || `${who} has a health problem that now affects the household routine.`]
-      : ["Care takes time", "Appointments, rest, worry, and practical help continue to take up space in family life."],
+      ? [`${who} is unwell`, thread.text || `${who} has a health problem that now affects the household routine.`]
+      : ["Care takes time", `${echo}Appointments, rest, worry, and practical help continue to take up space in family life.`],
     family_crisis: stage === 0
-      ? ["Something is wrong at home", thread.text || "An adult's coping has started affecting the household. The tension is becoming difficult to ignore."]
-      : ["The tension has not disappeared", "The problem has become part of the background of home life. Some days are calmer, but everyone has started adjusting around it."],
+      ? [`Something is wrong with ${who}`, thread.text || `${who}'s coping has started affecting the household. The tension is becoming difficult to ignore.`]
+      : ["The tension has not disappeared", `${echo}The problem has become part of the background of home life. Some days are calmer, but everyone has started adjusting around it.`],
   };
-  return map[thread.type] || ["Something changes", thread.text || "A major change has reached your household."];
+  return map[thread.type] || ["Something changes", `${echo}${thread.text || "A major change has reached your household."}`];
 }
 
 function majorThreadEvent(state, thread) {
@@ -290,7 +340,7 @@ function majorThreadEvent(state, thread) {
     category: thread.category || "Family",
     title,
     body,
-    prompt: ageBand(state) === "infant" ? "How do you respond to the change around you?" : ageBand(state) === "toddler" ? "What do you do as things change?" : "What do you do?",
+    prompt: ageBand(state) === "infant" ? "How do you respond to the change around you?" : ageBand(state) === "toddler" ? "What do you do as things change?" : thread.stage ? "What do you do now that this has continued?" : "What do you do?",
     choices: eventChoicesFor(state, thread.type, thread.stage || 0, person),
     contextKind: "thread",
     threadType: thread.type,
@@ -372,12 +422,13 @@ function householdEveningEvent(state) {
       ...toddlerChoices(state).slice(0, 2),
     ] : toddlerChoices(state), contextKind: "household" };
   }
+  const practice = practiceChoice(state);
   return {
     id: "context_household_child", category: "Home", title: "An ordinary evening", body: `${peopleCopy} Nothing dramatic is happening, which leaves room for the small choices that make a household feel close or distant over time.`, prompt: "Where do you spend the evening?", contextKind: "household",
     choices: [
       { id: "caregiver", label: `Stay near ${firstName(caregiver, "your caregiver")}`, result: "You spend time nearby without needing the conversation to become important.", effects: compactEffects(relationshipEffect(caregiver, "closeness", 2), { type: "health", key: "stress", delta: -1 }) },
       sibling ? { id: "sibling", label: `Spend time with ${firstName(sibling)}`, result: "The evening becomes one more ordinary piece of your relationship, which is how most closeness is actually built.", effects: compactEffects(relationshipEffect(sibling, "closeness", 2)) } : { id: "own", label: "Do something on your own", result: "You settle into something that belongs only to you for a while.", effects: [{ type: "personality", key: "independence", delta: 2 }] },
-      { id: "talk", label: "Talk about something on your mind", result: "The subject is not necessarily profound. Somebody listening still changes how it feels to carry it.", effects: compactEffects(relationshipEffect(caregiver, "trust", 2), { type: "personality", key: "social", delta: 1 }) },
+      practice || { id: "talk", label: "Talk about something on your mind", result: "The subject is not necessarily profound. Somebody listening still changes how it feels to carry it.", effects: compactEffects(relationshipEffect(caregiver, "trust", 2), { type: "personality", key: "social", delta: 1 }) },
     ],
   };
 }
@@ -417,6 +468,15 @@ function applyEffect(state, effect) {
   if (effect.type === "health") adjust(state.health, effect.key, effect.delta);
   if (effect.type === "personality") adjust(state.character?.personality, effect.key, effect.delta);
   if (effect.type === "interest") adjust(state.interests, effect.key, effect.delta);
+  if (effect.type === "practice") {
+    const item = (state.possessions?.items || []).find((entry) => entry.id === effect.itemId);
+    const hobby = effect.hobby;
+    if (hobby && typeof state.interests?.[hobby] === "number") state.interests[hobby] = clamp(state.interests[hobby] + (effect.delta || 1));
+    if (item) {
+      item.usedCount = (item.usedCount || 0) + 1;
+      item.lastUsedAtMonths = state.character.ageMonths;
+    }
+  }
   if (effect.type === "relationship") {
     const person = effect.targetId
       ? (state.people || []).find((item) => item.id === effect.targetId)
@@ -456,9 +516,11 @@ export function resolveContextualChoice(state, choiceId) {
   if (event.contextKind === "illness") {
     context.illness.label = illnessLabel(state);
     context.illness.turns = (context.illness.turns || 0) + 1;
+    context.illness.lastChoiceId = choice.id;
   } else if (event.contextKind === "recovery") {
     context.illness = { label: null, turns: 0 };
   } else if (event.contextKind === "thread" && context.activeThread) {
+    context.activeThread.lastChoiceId = choice.id;
     if ((context.activeThread.stage || 0) >= 1) context.activeThread = null;
     else context.activeThread.stage = 1;
   }
