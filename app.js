@@ -1,37 +1,33 @@
-const STORAGE_KEY = "little-days-demo-v1";
+import {
+  continueLife,
+  createNewLife,
+  discoveredTraits,
+  finalChildhoodSummary,
+  formatGameDate,
+  getAgeLabel,
+  getAgeYears,
+  getCurrentEvent,
+  getVisiblePeople,
+  interestSummary,
+  lifeIndicators,
+  lifeOverview,
+  personalityRows,
+  relationshipCopy,
+  relationshipLabel,
+  resolveChoice,
+  schoolSnapshot,
+} from "./game/engine.js";
 
-const defaultState = {
-  selectedChoice: "tell-mom",
-  memories: [
-    {
-      age: 5,
-      date: "May 10, 2031",
-      title: "First day of school",
-      copy: "You were nervous, but your teacher was very kind.",
-      featured: true,
-    },
-    {
-      age: 7,
-      date: "April 22, 2033",
-      title: "Planted sunflowers with Grandma",
-      copy: "You got soil on your hands and smiled a lot.",
-    },
-    {
-      age: 8,
-      date: "February 3, 2034",
-      title: "Maya became your best friend",
-      copy: "You laughed together so much that day.",
-    },
-  ],
-};
+const STORAGE_KEY = "little-days-save-v2";
 
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return { ...defaultState, ...saved };
+    if (saved?.version === 2 && saved.character && saved.household) return saved;
   } catch {
-    return { ...defaultState };
+    // A broken save should never make the whole childhood unplayable.
   }
+  return createNewLife();
 }
 
 let state = loadState();
@@ -97,80 +93,94 @@ function shell(content, route) {
   return `<section class="screen">${content}</section>${bottomNav(route)}`;
 }
 
-function lifeScreen() {
-  const choices = [
-    ["tell-mom", "Tell Mom when you get home"],
-    ["show-maya", "Show Maya"],
-    ["not-big-deal", "Pretend it isn't a big deal"],
-    ["keep-it", "Keep it to yourself"],
-  ];
+function categoryIcon(category) {
+  const map = {
+    School: icons.school,
+    Family: icons.family,
+    Friends: icons.people,
+    Home: icons.home,
+    Health: icons.moon,
+    Interests: icons.pen,
+    Money: icons.book,
+    Self: icons.self,
+  };
+  return map[category] || icons.life;
+}
 
-  const selectedCopy = {
-    "tell-mom": "You decide you want Mom to know. You are already imagining the small smile she makes when she is proud of you.",
-    "show-maya": "You fold the test carefully so you can show Maya at lunch. Sharing good news feels easier with her.",
-    "not-big-deal": "You shrug when anyone notices. Part of you is pleased anyway.",
-    "keep-it": "You tuck the paper into your bag. The result matters to you, even if nobody else sees it.",
-  }[state.selectedChoice];
+function lifeScreen() {
+  if (state.completed) {
+    const summary = finalChildhoodSummary(state);
+    return shell(
+      `
+        ${brand()}
+        <h1 class="age-title">Age 13</h1>
+        <p class="date-line">${formatGameDate(state)}</p>
+        <div class="eyebrow">${icons.memories} Childhood complete</div>
+        <h2 class="event-title">${summary.title}</h2>
+        <p class="event-copy">${summary.copy}</p>
+        <div class="divider"></div>
+        <p class="body-note">This is the end of the current childhood MVP. Adolescence is deliberately not simulated yet.</p>
+        <button class="utility-button" data-new-life>Begin another life</button>
+      `,
+      "life",
+    );
+  }
+
+  const event = getCurrentEvent(state);
+  const indicators = lifeIndicators(state);
+  const resolvedChoice = state.resolution?.choiceId;
 
   return shell(
     `
       ${brand()}
-      <h1 class="age-title">Age 8</h1>
-      <p class="date-line">March 14, 2034</p>
+      <h1 class="age-title">${getAgeLabel(state)}</h1>
+      <p class="date-line">${formatGameDate(state)}</p>
 
       <div class="status-strip" aria-label="Life indicators">
-        <div class="status-item"><span class="status-dot"></span><div class="status-copy"><strong>Wellbeing</strong>Good</div></div>
-        <div class="status-item"><span class="status-dot gold"></span><div class="status-copy"><strong>Energy</strong>Steady</div></div>
-        <div class="status-item"><span class="status-dot"></span><div class="status-copy"><strong>Stress</strong>Calm</div></div>
+        <div class="status-item"><span class="status-dot"></span><div class="status-copy"><strong>Wellbeing</strong>${indicators.wellbeing}</div></div>
+        <div class="status-item"><span class="status-dot gold"></span><div class="status-copy"><strong>Energy</strong>${indicators.energy}</div></div>
+        <div class="status-item"><span class="status-dot"></span><div class="status-copy"><strong>Stress</strong>${indicators.stress}</div></div>
       </div>
 
-      <div class="eyebrow">${icons.school} School</div>
-      <h2 class="event-title">Mathematics test</h2>
-      <p class="event-copy">You got your mathematics test back today.</p>
-      <p class="score">84%</p>
-      <p class="event-copy">Your teacher told you that you've improved a lot this term.</p>
-      <p class="event-copy">You feel proud.</p>
+      <div class="eyebrow">${categoryIcon(event.category)} ${event.category}</div>
+      <h2 class="event-title">${event.title}</h2>
+      <p class="event-copy">${event.body}</p>
       <div class="divider"></div>
-      <p class="prompt">What do you do?</p>
+      <p class="prompt">${event.prompt}</p>
       <div class="choices">
-        ${choices
+        ${event.choices
           .map(
-            ([value, label]) => `
-              <button class="choice-button ${state.selectedChoice === value ? "primary" : ""}" data-choice="${value}" aria-pressed="${state.selectedChoice === value}">${label}</button>
+            (choice) => `
+              <button
+                class="choice-button ${resolvedChoice === choice.id ? "primary" : ""}"
+                data-choice="${choice.id}"
+                ${state.resolution ? "disabled" : ""}
+                aria-pressed="${resolvedChoice === choice.id}"
+              >${choice.label}</button>
             `,
           )
           .join("")}
       </div>
-      <div class="result-card">${selectedCopy}</div>
+      ${
+        state.resolution
+          ? `<div class="result-card">${state.resolution.result}</div><button class="utility-button" id="continue-life">Continue</button>`
+          : ""
+      }
     `,
     "life",
   );
 }
 
 function peopleScreen() {
-  const people = [
-    {
-      initial: "M",
-      name: "Mom",
-      role: "Relationship — Strong",
-      copy: "You trust her and usually feel comfortable around her.",
-      meta: "Recently — She helped you prepare for school.",
-    },
-    {
-      initial: "G",
-      name: "Grandmother",
-      role: "Relationship — Very close",
-      copy: "Shared memories — 12",
-      meta: "You spend many afternoons together.",
-    },
-    {
-      initial: "M",
-      name: "Maya",
-      role: "Best friend",
-      copy: "Your friendship has been growing.",
-      meta: "Known for — 2 years",
-    },
-  ];
+  const roleLabel = {
+    guardian: "Parent / Guardian",
+    secondGuardian: "Parent / Guardian",
+    grandmother: "Grandmother",
+    sibling: "Sibling",
+    friend: "Friend",
+  };
+  const age = getAgeYears(state);
+  const people = getVisiblePeople(state);
 
   return shell(
     `
@@ -180,12 +190,12 @@ function peopleScreen() {
           .map(
             (person) => `
               <article class="person-card">
-                <div class="avatar" aria-hidden="true">${person.initial}</div>
+                <div class="avatar" aria-hidden="true">${person.name[0]}</div>
                 <div>
                   <h2 class="person-name">${person.name}</h2>
-                  <p class="person-role">${person.role}</p>
-                  <p class="person-copy">${person.copy}</p>
-                  <p class="person-meta">${person.meta}</p>
+                  <p class="person-role">${roleLabel[person.role] || "Relationship"} — ${relationshipLabel(person)}</p>
+                  <p class="person-copy">${relationshipCopy(person)}</p>
+                  <p class="person-meta">${person.role === "friend" ? `Known for — ${Math.max(0, age - 5)} year${Math.max(0, age - 5) === 1 ? "" : "s"}` : `Age — ${person.age + age}`}</p>
                 </div>
               </article>
             `,
@@ -198,25 +208,20 @@ function peopleScreen() {
 }
 
 function selfScreen() {
-  const traits = [
-    ["Reserved", "Outgoing", 62],
-    ["Cautious", "Adventurous", 76],
-    ["Sensitive", "Resilient", 66],
-    ["Impulsive", "Structured", 79],
-    ["Practical", "Curious", 84],
-  ];
+  const rows = personalityRows(state);
+  const traits = discoveredTraits(state);
 
   return shell(
     `
       ${brand("Self")}
       <h2 class="section-title">Personality</h2>
       <div class="personality-list">
-        ${traits
+        ${rows
           .map(
             ([left, right, value]) => `
               <div class="trait-line">
                 <span>${left}</span>
-                <div class="trait-track" style="--value:${value}%" role="img" aria-label="${left} to ${right}, leaning ${right}"></div>
+                <div class="trait-track" style="--value:${value}%" role="img" aria-label="${left} to ${right}"></div>
                 <span>${right}</span>
               </div>
             `,
@@ -225,110 +230,129 @@ function selfScreen() {
       </div>
       <div class="divider"></div>
       <h2 class="section-title">Discovered Traits</h2>
-      <div class="discovered-trait"><strong>Curious</strong><p>You often investigate things without being asked.</p></div>
-      <div class="discovered-trait"><strong>Maker</strong><p>You seem happiest when creating something.</p></div>
-      <div class="discovered-trait"><strong>???</strong><p>You haven't learned enough about yourself yet.</p></div>
+      ${
+        traits.length
+          ? traits.map(([name, copy]) => `<div class="discovered-trait"><strong>${name}</strong><p>${copy}</p></div>`).join("")
+          : `<div class="discovered-trait"><strong>???</strong><p>You haven't learned enough about yourself yet.</p></div>`
+      }
     `,
     "self",
   );
 }
 
 function memoriesScreen() {
+  const memories = [...state.memories].reverse();
   return shell(
     `
       ${brand("Memories")}
-      <div class="memory-timeline">
-        ${state.memories
-          .map(
-            (memory) => `
-              <article class="memory-entry ${memory.featured ? "featured" : ""}">
-                <p class="memory-date">Age ${memory.age} · ${memory.date}</p>
-                <h2 class="memory-title">${memory.title}</h2>
-                <p class="memory-copy">${memory.copy}</p>
-              </article>
-            `,
-          )
-          .join("")}
-      </div>
+      ${
+        memories.length
+          ? `<div class="memory-timeline">
+              ${memories
+                .map(
+                  (memory) => `
+                    <article class="memory-entry ${memory.featured ? "featured" : ""}">
+                      <p class="memory-date">Age ${memory.age} · ${memory.date}</p>
+                      <h2 class="memory-title">${memory.title}</h2>
+                      <p class="memory-copy">${memory.copy}</p>
+                    </article>
+                  `,
+                )
+                .join("")}
+            </div>`
+          : `<p class="body-note">Nothing has become a lasting memory yet. That will change. Childhood is annoyingly efficient at leaving evidence behind.</p>`
+      }
     `,
     "memories",
   );
 }
 
 function homeScreen() {
+  const age = getAgeYears(state);
+  const householdPeople = getVisiblePeople(state).filter((person) => person.role !== "friend");
   return shell(
     `
       ${brand()}
       <h1 class="home-title">Home</h1>
-      <h2 class="home-subtitle">The Reyes Family Home</h2>
-      <p class="kicker-copy">Small two-bedroom house<br />Quezon City, Philippines</p>
+      <h2 class="home-subtitle">${state.household.name}</h2>
+      <p class="kicker-copy">${state.household.housing}<br />${state.household.city}, ${state.household.country}</p>
 
       <section class="data-section">
         <h3 class="data-heading">Household</h3>
-        <div class="data-row"><span class="initial-chip">M</span><span class="label">Mom</span><span class="value">35</span></div>
-        <div class="data-row"><span class="initial-chip">D</span><span class="label">Dad</span><span class="value">37</span></div>
-        <div class="data-row"><span class="initial-chip">Y</span><span class="label">You</span><span class="value">8</span></div>
-        <div class="data-row"><span class="initial-chip">L</span><span class="label">Younger brother</span><span class="value">3</span></div>
+        <div class="data-row"><span class="initial-chip">${state.character.firstName[0]}</span><span class="label">You · ${state.character.firstName}</span><span class="value">${age}</span></div>
+        ${householdPeople
+          .map(
+            (person) => `<div class="data-row"><span class="initial-chip">${person.name[0]}</span><span class="label">${person.name}</span><span class="value">${person.age + age}</span></div>`,
+          )
+          .join("")}
       </section>
 
       <section class="data-section">
         <h3 class="data-heading">Home Life</h3>
-        <div class="data-row">${icons.home}<span class="label">Comfort</span><span class="value">Comfortable</span></div>
-        <div class="data-row">${icons.shield}<span class="label">Privacy</span><span class="value">Limited</span></div>
-        <div class="data-row">${icons.book}<span class="label">Finances</span><span class="value">Getting by</span></div>
-        <div class="data-row">${icons.people}<span class="label">Neighborhood</span><span class="value">Busy</span></div>
+        <div class="data-row">${icons.home}<span class="label">Comfort</span><span class="value">${state.household.comfort}</span></div>
+        <div class="data-row">${icons.shield}<span class="label">Privacy</span><span class="value">${state.household.privacy}</span></div>
+        <div class="data-row">${icons.book}<span class="label">Finances</span><span class="value">${state.household.financeBand}</span></div>
+        <div class="data-row">${icons.people}<span class="label">Neighborhood</span><span class="value">${state.household.neighborhood}</span></div>
       </section>
-      <p class="body-note">The house can feel crowded, but evenings are usually peaceful.</p>
+      <p class="body-note">${state.household.financeBand === "Tight" ? "Money sometimes changes what the household can say yes to." : state.household.privacy === "Limited" ? "The home can feel crowded, although familiar routines make it feel like yours." : "Home life is fairly steady at the moment."}</p>
     `,
     "home",
   );
 }
 
 function schoolScreen() {
+  const school = schoolSnapshot(state);
+  if (!school) {
+    return shell(
+      `
+        ${brand()}
+        <h1 class="page-title">School</h1>
+        <p class="body-note">School has not started yet. For now, most of your world is still home, family, and whatever happens to be within reach.</p>
+      `,
+      "school",
+    );
+  }
+
   return shell(
     `
       ${brand()}
-      <h1 class="page-title">Grade 3</h1>
+      <h1 class="page-title">${school.grade}</h1>
       <table class="subject-table">
         <caption>Subjects</caption>
         <tbody>
-          <tr><td>Mathematics</td><td>Doing well</td></tr>
-          <tr><td>Language</td><td>Average</td></tr>
-          <tr><td>Science</td><td>Strong interest</td></tr>
-          <tr><td>Art</td><td>Excellent</td></tr>
-          <tr><td>Physical Education</td><td>Struggling</td></tr>
+          ${school.subjects.map(([subject, status]) => `<tr><td>${subject}</td><td>${status}</td></tr>`).join("")}
         </tbody>
       </table>
 
       <section class="data-section">
-        <div class="data-row">${icons.self}<span class="label">Teacher</span><span class="value">Ms. Santos</span></div>
-        <div class="data-row">${icons.book}<span class="label">Friends at school</span><span class="value">Maya, Liam, Zoe</span></div>
-        <div class="data-row">${icons.calendar}<span class="label">Current term</span><span class="value">Term 2 · Jan–Apr</span></div>
-        <div class="data-row">${icons.shield}<span class="label">Coming up</span><span class="value">Science fair</span></div>
+        <div class="data-row">${icons.self}<span class="label">Teacher</span><span class="value">${school.teacher}</span></div>
+        <div class="data-row">${icons.book}<span class="label">Closest school friend</span><span class="value">${school.friend}</span></div>
+        <div class="data-row">${icons.calendar}<span class="label">Current term</span><span class="value">${school.term}</span></div>
       </section>
 
       <h2 class="section-title">School lately</h2>
-      <p class="body-note">You're doing well, although you rarely volunteer answers during class.</p>
+      <p class="body-note">${state.character.personality.social < 42 ? "You tend to watch and listen before volunteering yourself." : state.character.personality.structure > 65 ? "You usually feel best when you understand what is expected of you." : "School is becoming one of the places where more of your personality shows."}</p>
     `,
     "school",
   );
 }
 
 function overviewScreen() {
+  const overview = lifeOverview(state);
   const rows = [
-    [icons.family, "Family", "You feel closest to your grandmother."],
-    [icons.book, "School", "You're doing well, although you rarely volunteer answers."],
-    [icons.heart, "Friends", "You have one very close friend."],
-    [icons.moon, "Health", "You sleep okay, but you get tired easily."],
-    [icons.pen, "Interests", "You've recently become fascinated with drawing."],
-    [icons.home, "Home", "Your home is comfortable, although it can feel crowded."],
+    [icons.family, "Family", overview.rows.family],
+    [icons.book, "School", overview.rows.school],
+    [icons.heart, "Friends", overview.rows.friends],
+    [icons.moon, "Health", overview.rows.health],
+    [icons.pen, "Interests", overview.rows.interests],
+    [icons.home, "Home", overview.rows.home],
   ];
 
   return shell(
     `
       ${brand("Life")}
       <p class="life-feeling-label">Life lately</p>
-      <p class="life-feeling">Safe, curious, and a little lonely.</p>
+      <p class="life-feeling">${overview.feeling}</p>
       <div>
         ${rows
           .map(
@@ -369,7 +393,8 @@ function moreScreen() {
           )
           .join("")}
       </div>
-      <button class="utility-button" id="reset-demo">Reset demo choices</button>
+      <p class="body-note">Playing as <strong>${state.character.firstName} ${state.character.lastName}</strong>, born in ${state.character.birthplace}. ${interestSummary(state)}</p>
+      <button class="utility-button" data-new-life>Begin a different life</button>
     `,
     "more",
   );
@@ -393,6 +418,15 @@ function render() {
   bindEvents();
 }
 
+function startNewLife() {
+  if (!window.confirm("Begin a different life? Your current childhood will be replaced.")) return;
+  state = createNewLife();
+  saveState();
+  location.hash = "life";
+  render();
+  showToast(`A new life begins. Meet ${state.character.firstName}.`);
+}
+
 function bindEvents() {
   document.querySelectorAll("[data-route]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -404,19 +438,21 @@ function bindEvents() {
 
   document.querySelectorAll("[data-choice]").forEach((button) => {
     button.addEventListener("click", () => {
-      state.selectedChoice = button.dataset.choice;
+      resolveChoice(state, button.dataset.choice);
       saveState();
       render();
-      showToast("Choice remembered. Small things have a habit of sticking around.");
+      showToast("Choice remembered.");
     });
   });
 
-  document.querySelector("#reset-demo")?.addEventListener("click", () => {
-    state = { ...defaultState, memories: [...defaultState.memories] };
+  document.querySelector("#continue-life")?.addEventListener("click", () => {
+    continueLife(state);
     saveState();
     render();
-    showToast("Demo state reset.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   });
+
+  document.querySelectorAll("[data-new-life]").forEach((button) => button.addEventListener("click", startNewLife));
 }
 
 function showToast(message) {
@@ -427,16 +463,17 @@ function showToast(message) {
   toast.setAttribute("role", "status");
   toast.textContent = message;
   document.body.appendChild(toast);
-  toastTimer = setTimeout(() => toast.remove(), 2400);
+  toastTimer = setTimeout(() => toast.remove(), 2200);
 }
 
 window.addEventListener("hashchange", render);
 window.addEventListener("DOMContentLoaded", () => {
+  saveState();
   render();
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     navigator.serviceWorker.register("./sw.js").catch(() => {
-      // The app still works normally without offline caching.
+      // The game still works without offline caching.
     });
   }
 });
