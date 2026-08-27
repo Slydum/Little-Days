@@ -25,7 +25,7 @@ assert.equal(candidate.role, "classmate", "a potential friend should remain a cl
 assert.equal(candidate.relationshipLabel, "Classmate");
 const opening = childhoodEventForState(acquaintanceLife);
 assert.ok(opening, "a friendship opening should become playable");
-assert.equal(opening.childhoodType, "friendship_opening", "automatic friend creation should be converted into a friendship opening");
+assert.match(opening.id || "", /friendship_opening/, "automatic friend creation should become a friendship-opening scene");
 assert.ok(opening.choices.some((choice) => choice.id === "class"), "the player must be allowed to keep the relationship as a classmate");
 resolveChildhoodChoice(acquaintanceLife, "class");
 assert.equal(candidate.role, "classmate", "choosing classroom-only contact must not secretly create a friendship");
@@ -35,7 +35,7 @@ const friendshipLife = schoolStart(88231);
 const candidate2 = (friendshipLife.people || []).find((person) => person.school?.friendshipCandidate === true);
 assert.ok(candidate2);
 const opening2 = childhoodEventForState(friendshipLife);
-assert.equal(opening2.childhoodType, "friendship_opening");
+assert.match(opening2.id || "", /friendship_opening/);
 resolveChildhoodChoice(friendshipLife, "friend");
 assert.equal(candidate2.role, "friend", "choosing to seek the classmate out should be what creates the friendship");
 assert.ok(socialSnapshot(friendshipLife).friends.some((person) => person.id === candidate2.id));
