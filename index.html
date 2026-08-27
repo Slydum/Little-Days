@@ -7,13 +7,21 @@
     <meta name="description" content="Little Days — a quiet, story-first life simulation." />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css" />
-    <link rel="stylesheet" href="./setup.css" />
+    <link rel="stylesheet" href="./styles.css?v=6" />
+    <link rel="stylesheet" href="./setup.css?v=6" />
     <title>Little Days</title>
   </head>
   <body>
-    <main id="app" class="app-shell" aria-live="polite"></main>
+    <main id="app" class="app-shell" aria-live="polite">
+      <section class="setup-screen">
+        <div class="setup-header">
+          <p class="brand">Little Days</p>
+          <h1>Loading…</h1>
+          <p>Your life is being found. Humanity has somehow made even being born require JavaScript.</p>
+        </div>
+      </section>
+    </main>
     <noscript>Little Days needs JavaScript enabled to run.</noscript>
-    <script type="module" src="./bootstrap.js"></script>
+    <script type="module" src="./bootstrap.js?v=6"></script>
   </body>
 </html>
