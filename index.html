@@ -7,8 +7,8 @@
     <meta name="description" content="Little Days — a quiet, story-first life simulation." />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=6" />
-    <link rel="stylesheet" href="./setup.css?v=6" />
+    <link rel="stylesheet" href="./styles.css?v=7" />
+    <link rel="stylesheet" href="./setup.css?v=7" />
     <title>Little Days</title>
   </head>
   <body>
@@ -17,11 +17,45 @@
         <div class="setup-header">
           <p class="brand">Little Days</p>
           <h1>Loading…</h1>
-          <p>Your life is being found. Humanity has somehow made even being born require JavaScript.</p>
+          <p>Your life is being found.</p>
         </div>
       </section>
     </main>
     <noscript>Little Days needs JavaScript enabled to run.</noscript>
-    <script type="module" src="./bootstrap.js?v=6"></script>
+
+    <script>
+      window.__littleDaysBooted = false;
+
+      // Little Days is still changing rapidly. Retire old service workers so a stale
+      // offline cache cannot keep serving yesterday's JavaScript to today's page.
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (registrations) {
+          registrations.forEach(function (registration) {
+            registration.unregister();
+          });
+        }).catch(function () {});
+      }
+
+      // If the main startup script does not execute, do not leave the player staring
+      // at an eternal loading screen. Give them a useful recovery action instead.
+      window.setTimeout(function () {
+        if (window.__littleDaysBooted) return;
+        var app = document.getElementById("app");
+        if (!app) return;
+        app.innerHTML = '<section class="setup-screen"><div class="setup-header"><p class="brand">Little Days</p><h1>Still loading?</h1><p>Your browser is holding an older game file. Refreshing once should clear it.</p></div><button class="setup-primary" id="force-fresh-load">Load the latest version</button></section>';
+        var button = document.getElementById("force-fresh-load");
+        if (button) {
+          button.addEventListener("click", function () {
+            var url = new URL(window.location.href);
+            url.searchParams.set("fresh", Date.now().toString());
+            window.location.replace(url.toString());
+          });
+        }
+      }, 1800);
+    </script>
+
+    <!-- Classic + defer is intentionally used here instead of a module entrypoint.
+         The game itself can still load ES modules dynamically after startup. -->
+    <script defer src="./bootstrap.js?v=7"></script>
   </body>
 </html>
