@@ -1,5 +1,3 @@
-import { createNewLife, formatGameDate } from "./game/engine.js";
-
 const STORAGE_KEY = "little-days-save-v2";
 
 function readSave() {
@@ -7,7 +5,7 @@ function readSave() {
     const value = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (value?.version === 2 && value.character && value.household) return value;
   } catch {
-    // Treat broken saves as no save.
+    // A broken save should behave like no save, not like a white screen.
   }
   return null;
 }
@@ -63,8 +61,28 @@ function normalizeEarlyEvent(life) {
   return true;
 }
 
+function formatDate(state) {
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  return `${monthNames[state.date.month]} ${state.date.day}, ${state.date.year}`;
+}
+
 function setupShell(content) {
-  document.querySelector("#app").innerHTML = `<section class="setup-screen">${content}</section>`;
+  const app = document.querySelector("#app");
+  if (!app) return;
+  app.innerHTML = `<section class="setup-screen">${content}</section>`;
+}
+
+function showStartupError(error) {
+  console.error(error);
+  setupShell(`
+    <div class="setup-header">
+      <p class="brand">Little Days</p>
+      <h1>Something didn't load.</h1>
+      <p>The game files may still be updating. Your browser can also be stubbornly holding an older cached version.</p>
+    </div>
+    <button class="setup-primary" id="retry-startup">Try again</button>
+  `);
+  document.querySelector("#retry-startup")?.addEventListener("click", () => location.reload());
 }
 
 function showLifeChoice() {
@@ -77,20 +95,20 @@ function showLifeChoice() {
 
     <div class="setup-options">
       <button class="setup-option" id="random-life">
-        <strong>New life</strong>
-        <span>Let everything be generated, including who you are.</span>
+        <strong>Random life</strong>
+        <span>Let everything be generated, including your character.</span>
       </button>
       <button class="setup-option" id="custom-life">
         <strong>Custom character</strong>
-        <span>Choose your identity. Family, money, home, birthplace, temperament, and the rest of your circumstances remain out of your hands.</span>
+        <span>Choose your character's identity. Their family, money, home, birthplace, temperament, and circumstances are still generated.</span>
       </button>
     </div>
 
-    <p class="setup-footnote">There is no ideal starting life. The point is to see what becomes of it.</p>
+    <p class="setup-footnote">You can choose the person. You cannot choose the life waiting for them.</p>
   `);
 
-  document.querySelector("#random-life").addEventListener("click", () => createAndIntroduce("random"));
-  document.querySelector("#custom-life").addEventListener("click", showCustomCharacter);
+  document.querySelector("#random-life")?.addEventListener("click", () => createAndIntroduce("random"));
+  document.querySelector("#custom-life")?.addEventListener("click", showCustomCharacter);
 }
 
 function showCustomCharacter() {
@@ -129,8 +147,8 @@ function showCustomCharacter() {
     </form>
   `);
 
-  document.querySelector("#back-to-life-choice").addEventListener("click", showLifeChoice);
-  document.querySelector("#custom-character-form").addEventListener("submit", (event) => {
+  document.querySelector("#back-to-life-choice")?.addEventListener("click", showLifeChoice);
+  document.querySelector("#custom-character-form")?.addEventListener("submit", (event) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const firstName = cleanName(data.get("firstName"));
@@ -140,14 +158,27 @@ function showCustomCharacter() {
   });
 }
 
-function createAndIntroduce(mode, custom = null) {
-  let life = createNewLife();
-  if (mode === "custom") life = applyCustomIdentity(life, custom);
-  life.startMode = mode;
-  life.introPending = true;
-  normalizeEarlyEvent(life);
-  writeSave(life);
-  location.reload();
+async function createAndIntroduce(mode, custom = null) {
+  setupShell(`
+    <div class="setup-header">
+      <p class="brand">Little Days</p>
+      <h1>A life is beginning.</h1>
+      <p>Some things are already being decided without you.</p>
+    </div>
+  `);
+
+  try {
+    const { createNewLife } = await import("./game/engine.js?v=6");
+    let life = createNewLife();
+    if (mode === "custom") life = applyCustomIdentity(life, custom);
+    life.startMode = mode;
+    life.introPending = true;
+    normalizeEarlyEvent(life);
+    writeSave(life);
+    showIntroduction(life);
+  } catch (error) {
+    showStartupError(error);
+  }
 }
 
 function showIntroduction(state) {
@@ -167,7 +198,7 @@ function showIntroduction(state) {
       <p class="brand">Little Days</p>
       <p class="birth-kicker">A new life</p>
       <h1>You were born.</h1>
-      <p class="birth-date">${formatGameDate(state)}</p>
+      <p class="birth-date">${formatDate(state)}</p>
 
       <div class="birth-rule"></div>
 
@@ -183,7 +214,7 @@ function showIntroduction(state) {
     </div>
   `);
 
-  document.querySelector("#begin-life").addEventListener("click", () => {
+  document.querySelector("#begin-life")?.addEventListener("click", () => {
     const save = readSave();
     if (!save) return showLifeChoice();
     save.introPending = false;
@@ -203,7 +234,8 @@ function installNewLifeInterceptor() {
       if (!window.confirm("Begin a different life? Your current childhood will be replaced.")) return;
       localStorage.removeItem(STORAGE_KEY);
       history.replaceState(null, "", location.pathname + location.search);
-      location.reload();
+      showLifeChoice();
+      window.scrollTo({ top: 0, behavior: "auto" });
     },
     true,
   );
@@ -221,18 +253,32 @@ function installNewLifeInterceptor() {
   });
 }
 
-const saved = readSave();
+async function boot() {
+  const saved = readSave();
 
-if (!saved) {
-  showLifeChoice();
-} else {
-  const corrected = normalizeEarlyEvent(saved);
-  if (corrected) writeSave(saved);
-
-  if (saved.introPending) {
-    showIntroduction(saved);
+  if (!saved) {
+    showLifeChoice();
   } else {
-    installNewLifeInterceptor();
-    import("./app.js");
+    const corrected = normalizeEarlyEvent(saved);
+    if (corrected) writeSave(saved);
+
+    if (saved.introPending) {
+      showIntroduction(saved);
+    } else {
+      installNewLifeInterceptor();
+      try {
+        await import("./app.js?v=6");
+      } catch (error) {
+        showStartupError(error);
+      }
+    }
+  }
+
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    navigator.serviceWorker.register("./sw.js?v=6").catch(() => {
+      // The game can still run without offline caching.
+    });
   }
 }
+
+boot().catch(showStartupError);
