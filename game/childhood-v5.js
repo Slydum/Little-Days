@@ -26,7 +26,7 @@ export function advanceChildhoodWorld(state, elapsedMonths = 0, beforeAgeMonths 
 export function schoolWorldSnapshot(state) {
   const base = core.schoolWorldSnapshot(state);
   if (!base) return null;
-  syncSchoolCoherence(state);
+  ensureSchoolCoherence(state);
   return { ...base, coherence: schoolCoherenceSnapshot(state) };
 }
 
