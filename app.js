@@ -131,7 +131,7 @@ function lifeScreen() {
       <div class="status-item"><span class="status-dot gold"></span><div class="status-copy"><strong>Energy</strong>${indicators.energy}</div></div>
       <div class="status-item"><span class="status-dot"></span><div class="status-copy"><strong>Stress</strong>${indicators.stress}</div></div>
     </div>
-    ${aroundYouBlock()}
+    <div id="around-you-slot">${aroundYouBlock()}</div>
     <div class="eyebrow">${categoryIcon(event.category)} ${event.category}</div>
     <h2 class="event-title">${event.title}</h2>
     <p class="event-copy">${event.body}</p>
@@ -368,7 +368,6 @@ function continueCurrentLife(){
   syncHouseholdMembership(state);
   saveState();
   render();
-  window.scrollTo({top:0,behavior:"smooth"});
 }
 
 function bindContinueButton(){
@@ -448,9 +447,19 @@ function bindEvents(){
   document.querySelectorAll("[data-new-life]").forEach(button=>button.addEventListener("click",startNewLife));
 }
 
+function syncExternalState(event){
+  const next=event?.detail?.state;
+  if(!next||next.version!==2||!next.character||!next.household)return;
+  state=ensureChildhoodState(syncHouseholdMembership(ensureRealismState(next)));
+  updateLifeIndicators();
+  const aroundYouSlot=document.querySelector("#around-you-slot");
+  if(aroundYouSlot)aroundYouSlot.innerHTML=aroundYouBlock();
+}
+
 function showToast(message){clearTimeout(toastTimer);document.querySelector(".toast")?.remove();const toast=document.createElement("div");toast.className="toast";toast.setAttribute("role","status");toast.textContent=message;document.body.appendChild(toast);toastTimer=setTimeout(()=>toast.remove(),2200)}
 
 export function initializeApp(){ensureRealismState(state);ensureChildhoodState(state);syncHouseholdMembership(state);if(initialized){render();return}initialized=true;saveState();render();if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.getRegistrations().then(registrations=>registrations.forEach(registration=>registration.unregister())).catch(()=>{})}}
 
 window.addEventListener("hashchange",render);
+window.addEventListener("little-days-state-sync",syncExternalState);
 if(document.readyState==="loading")window.addEventListener("DOMContentLoaded",initializeApp,{once:true});else initializeApp();
