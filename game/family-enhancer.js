@@ -63,6 +63,28 @@ function scoreWord(value) {
   return "Struggling";
 }
 
+function schoolStorySection(coherence) {
+  if (!coherence) return "";
+  const strengths = coherence.strengths?.length
+    ? `<div class="school-v2-row"><span>Recurring strengths</span><strong>${coherence.strengths.join(", ")}</strong></div>`
+    : "";
+  const struggles = coherence.struggles?.length
+    ? `<div class="school-v2-row"><span>Still taking work</span><strong>${coherence.struggles.join(", ")}</strong></div>`
+    : "";
+  const activities = coherence.recurringActivities?.length
+    ? `<div class="school-v2-row"><span>Activities that stuck</span><strong>${coherence.recurringActivities.join(", ")}</strong></div>`
+    : "";
+  const recentYears = (coherence.recentYears || []).slice(-3).map((year) => `
+    <div class="school-story-year"><span>${year.grade}</span><strong>${scoreWord(year.overall)}</strong>${year.teacherName ? `<small>${year.teacherName}</small>` : ""}</div>`).join("");
+  return `<section class="school-v2-section school-story-section">
+    <h2>Your school story</h2>
+    <p class="school-story-lead">${coherence.trajectory}</p>
+    <p>${coherence.continuityNote}</p>
+    ${strengths}${struggles}${activities}
+    ${recentYears ? `<div class="school-story-years">${recentYears}</div>` : ""}
+  </section>`;
+}
+
 function schoolPanel(state) {
   const school = schoolWorldSnapshot(state);
   const social = socialSnapshot(state);
@@ -82,13 +104,15 @@ function schoolPanel(state) {
     : `<span class="school-muted">No regular extracurricular activity yet.</span>`;
   const recap = school.recentRecap ? `<section class="school-v2-section"><h2>Last school year</h2><p>${school.recentRecap.text}</p></section>` : "";
   const crush = social.crush ? `<div class="school-v2-row"><span>Crush</span><strong>${social.crush.name.split(" ")[0]}${social.crushReciprocity === "mutual" ? " · mutual" : social.crushReciprocity === "possible" ? " · maybe mutual" : ""}</strong></div>` : "";
+  const story = schoolStorySection(school.coherence);
   return `<style>
     .school-world-v2-panel{margin-top:20px;padding-top:2px;border-top:1px solid var(--line)}
     .school-v2-heading{margin:18px 0 6px;font-family:var(--serif);font-size:18px;font-weight:500}
-    .school-v2-section{margin-top:18px}.school-v2-section h2{margin:0 0 7px;font-family:var(--serif);font-size:16px;font-weight:500}.school-v2-section p{margin:0;color:var(--muted);font-size:11px;line-height:1.5}
+    .school-v2-section{margin-top:18px}.school-v2-section h2{margin:0 0 7px;font-family:var(--serif);font-size:16px;font-weight:500}.school-v2-section p{margin:0;color:var(--muted);font-size:11px;line-height:1.5}.school-v2-section p+p{margin-top:6px}
     .school-v2-row{display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-top:1px solid var(--line);font-size:11px}.school-v2-row strong{font-weight:600;text-align:right}
     .school-peer-row{-webkit-appearance:none;appearance:none;width:100%;display:flex;justify-content:space-between;gap:12px;padding:9px 0;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);font:inherit;text-align:left;cursor:pointer}.school-peer-name{font-family:var(--serif);font-size:13px}.school-peer-tier{color:var(--muted);font-size:10px;text-align:right}
     .school-pill{display:inline-block;margin:2px 5px 2px 0;padding:5px 8px;border:1px solid var(--line);border-radius:999px;font-size:9px}.school-muted{color:var(--muted);font-size:10px}
+    .school-story-section{padding:12px 0 2px;border-top:1px solid var(--line)}.school-story-lead{color:var(--ink)!important;font-family:var(--serif);font-size:14px!important;line-height:1.45!important}.school-story-years{margin-top:10px;border-bottom:1px solid var(--line)}.school-story-year{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:7px 0;border-top:1px solid var(--line);font-size:10px}.school-story-year strong{font-weight:600}.school-story-year small{grid-column:1/-1;color:var(--muted);font-size:9px}
   </style>
   <div class="school-world-v2-panel">
     <h2 class="school-v2-heading">School life</h2>
@@ -98,6 +122,7 @@ function schoolPanel(state) {
     <div class="school-v2-row"><span>Teacher support</span><strong>${scoreWord(school.teacherSupport)}</strong></div>
     <div class="school-v2-row"><span>Known classmates this year</span><strong>${school.classSizeKnown}</strong></div>
     ${crush}
+    ${story}
     <section class="school-v2-section"><h2>Your social circle</h2>${friendRows || `<p>Friendships are still forming.</p>`}${rivalRows}</section>
     <section class="school-v2-section"><h2>Activities</h2><div>${activities}</div></section>
     ${recap}
