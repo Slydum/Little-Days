@@ -553,9 +553,9 @@ function advanceDate(state, amount) {
 }
 
 function monthsPerTurn(state) {
-  const age = getAgeYears(state);
-  if (age < 2) return 6;
-  if (age < 6) return 4;
+  const ageMonths = state.character.ageMonths;
+  if (ageMonths < 12) return 3;
+  if (ageMonths < 6 * 12) return 4;
   return 3;
 }
 
