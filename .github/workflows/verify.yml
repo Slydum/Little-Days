@@ -18,6 +18,7 @@ jobs:
           node --check app.js
           node --check game/engine.js
           node --check game/engine-v25.js
+          node --check game/engine-v26.js
           node --check game/content.js
           node --check game/callbacks.js
           node --check game/realism.js
