@@ -2,6 +2,7 @@ import { familyTreeContent } from "./family-ui.js";
 import { schoolWorldSnapshot, socialSnapshot } from "./childhood-v2.js?v=23";
 import { refreshLifeEnhancer } from "./life-enhancer.js?v=27";
 import { installPsychologyBridge } from "./psychology.js?v=1";
+import { installPsychologyPhase2Bridge } from "./psychology-phase2.js?v=1";
 
 const STORAGE_KEY = "little-days-save-v2";
 let renderToken = 0;
@@ -129,6 +130,7 @@ function scheduleRender() {
 }
 
 installPsychologyBridge();
+installPsychologyPhase2Bridge();
 window.addEventListener("hashchange", scheduleRender);
 const app = document.querySelector("#app");
 if (app) new MutationObserver(scheduleRender).observe(app, { childList: true, subtree: true });
