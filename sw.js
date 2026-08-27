@@ -1,8 +1,10 @@
-const CACHE = "little-days-v3";
+const CACHE = "little-days-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
+  "./setup.css",
+  "./bootstrap.js",
   "./app.js",
   "./game/engine.js",
   "./game/content.js",
