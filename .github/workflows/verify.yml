@@ -28,6 +28,7 @@ jobs:
           node --check tests/contextual-events-smoke.mjs
           node --check tests/household-membership-smoke.mjs
           node --check tests/childhood-v2-smoke.mjs
+          node --check tests/school-social-100-life.mjs
       - name: Smoke test living household
         run: node tests/realism-smoke.mjs
       - name: Smoke test contextual life loop
@@ -36,3 +37,5 @@ jobs:
         run: node tests/household-membership-smoke.mjs
       - name: Smoke test childhood social world
         run: node tests/childhood-v2-smoke.mjs
+      - name: Simulate 100 school-age lives
+        run: node tests/school-social-100-life.mjs
