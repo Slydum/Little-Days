@@ -1,12 +1,12 @@
-const CACHE = "little-days-v5";
+const CACHE = "little-days-v6";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=6",
-  "./setup.css?v=6",
-  "./bootstrap.js?v=6",
-  "./app.js?v=6",
-  "./game/engine.js?v=6",
+  "./styles.css?v=13",
+  "./setup.css?v=13",
+  "./bootstrap.js?v=7",
+  "./app.js?v=13",
+  "./game/engine.js?v=7",
   "./game/content.js",
   "./game/callbacks.js",
   "./manifest.webmanifest",
