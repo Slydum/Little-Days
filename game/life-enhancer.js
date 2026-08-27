@@ -53,10 +53,6 @@ function dramaRandom(state) {
   return state.lifeEnhancer.dramaRngState / 4294967296;
 }
 
-function pickBy(state, list, salt = 0) {
-  return list[Math.floor(seededNumber(state, salt) * list.length)] || list[0];
-}
-
 function ensureState(state) {
   const seed = ((Number(state.seed) || 1) ^ 0x4f1bbcdc) >>> 0;
   state.lifeEnhancer ||= { version: 1, lastProcessedAgeMonths: state.character?.ageMonths || 0, dramaRngState: seed || 1 };
@@ -220,19 +216,19 @@ function processGifts(state, beforeMonths, elapsedMonths) {
   const givers = giftGivers(state);
   const templates = eligibleGiftTemplates(state);
   if (!givers.length || !templates.length) return false;
-  let changed = false;
   if (currentAge > beforeAge && currentAge >= 1) {
     const giver = givers[Math.floor(seededNumber(state, 0x7711 + currentAge) * givers.length)];
     const template = templates[Math.floor(seededNumber(state, 0x8822 + currentAge) * templates.length)];
     receiveGift(state, giver, template, "Birthday gift");
-    changed = true;
-  } else if (elapsedMonths > 0 && seededNumber(state, 0x9911) < Math.min(0.18, elapsedMonths * 0.018)) {
+    return true;
+  }
+  if (elapsedMonths > 0 && seededNumber(state, 0x9911) < Math.min(0.18, elapsedMonths * 0.018)) {
     const giver = givers[Math.floor(seededNumber(state, 0x6622) * givers.length)];
     const template = templates[Math.floor(seededNumber(state, 0x5533) * templates.length)];
     receiveGift(state, giver, template, "Gift");
-    changed = true;
+    return true;
   }
-  return changed;
+  return false;
 }
 
 function partnerAdults(state) {
@@ -321,7 +317,6 @@ function resolveAffair(state, affair) {
   const otherName = outsider?.name || "the other person";
   const monthsSinceDiscovery = state.character.ageMonths - (affair.discoveredAtMonths || state.character.ageMonths);
   if (monthsSinceDiscovery < 3) return false;
-
   const separationPressure = clamp((45 - (partnership.quality ?? 45)) / 60 + 0.08, 0.08, 0.48);
   if (dramaRandom(state) < separationPressure) {
     partnership.status = "separated";
@@ -332,7 +327,6 @@ function resolveAffair(state, affair) {
     state.relationshipDrama.history.push({ type: "affair_separation", ageMonths: state.character.ageMonths, actorId: actor?.id || null, partnerId: partner?.id || null });
     return true;
   }
-
   if (dramaRandom(state) < 0.4) {
     affair.status = "ended";
     partnership.quality = clamp((partnership.quality ?? 45) + 6);
@@ -358,7 +352,6 @@ function processRelationshipDrama(state, elapsedMonths) {
     }
     return false;
   }
-
   affair.months = (affair.months || 0) + elapsedMonths;
   if (affair.status === "secret" && affair.months >= 3) {
     const discoveryChance = clamp(0.08 + affair.months * 0.025, 0.1, 0.55);
@@ -442,7 +435,7 @@ function bindInventory(screen) {
     if (!item) return;
     item.favorite = !item.favorite;
     saveState(state);
-    renderInventory();
+    renderInventory(true);
   }));
   screen.querySelectorAll("[data-practice-item]").forEach((button) => button.addEventListener("click", () => {
     const state = ensureState(readState());
@@ -479,12 +472,14 @@ function bindInventory(screen) {
   }));
 }
 
-function renderInventory() {
+function renderInventory(force = false) {
   const route = location.hash.replace("#", "");
   if (!route.startsWith("inventory")) return;
   const screen = document.querySelector(".screen");
   const state = readState();
   if (!screen || !state) return;
+  if (!force && screen.dataset.lifeEnhancerRoute === route) return;
+  screen.dataset.lifeEnhancerRoute = route;
   const giveMatch = route.match(/^inventory\/give\/(.+)$/);
   screen.innerHTML = giveMatch ? giveContent(state, decodeURIComponent(giveMatch[1])) : inventoryContent(state);
   bindInventory(screen);
@@ -509,7 +504,7 @@ function scheduleUi() {
   }, 0);
 }
 
-function initialize() {
+export function refreshLifeEnhancer() {
   const state = readState();
   if (!state) return;
   ensureState(state);
@@ -522,7 +517,4 @@ function initialize() {
   scheduleUi();
 }
 
-window.addEventListener("hashchange", scheduleUi);
-const observer = new MutationObserver(scheduleUi);
-observer.observe(document.documentElement, { childList: true, subtree: true });
-initialize();
+refreshLifeEnhancer();
