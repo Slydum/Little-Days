@@ -388,8 +388,7 @@ function moreScreen() {
                 <span>${icon}</span>
                 <span><strong>${title}</strong>${copy}</span>
                 <span class="chevron" aria-hidden="true">›</span>
-              </button>
-            `,
+              </button>`,
           )
           .join("")}
       </div>
@@ -466,14 +465,28 @@ function showToast(message) {
   toastTimer = setTimeout(() => toast.remove(), 2200);
 }
 
-window.addEventListener("hashchange", render);
-window.addEventListener("DOMContentLoaded", () => {
+function initializeApp() {
   saveState();
   render();
 
+  // Service workers were useful for the installable prototype, but during active
+  // development a stale worker can keep serving old JavaScript on iOS. Retire any
+  // existing registrations for now so refreshing always resumes the latest build.
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    navigator.serviceWorker.register("./sw.js").catch(() => {
-      // The game still works without offline caching.
-    });
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((registrations) => registrations.forEach((registration) => registration.unregister()))
+      .catch(() => {});
   }
-});
+}
+
+window.addEventListener("hashchange", render);
+
+// app.js is often imported after the page has already finished loading (for example
+// after pressing Begin on the birth introduction). In that case DOMContentLoaded has
+// already happened, so waiting for it would leave the app stuck on "Opening your life…".
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", initializeApp, { once: true });
+} else {
+  initializeApp();
+}
