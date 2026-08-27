@@ -1,6 +1,6 @@
 import { familyTreeContent } from "./family-ui.js";
 import { schoolWorldSnapshot, socialSnapshot } from "./childhood-v2.js?v=23";
-import { refreshLifeEnhancer } from "./life-enhancer.js?v=27";
+import { refreshLifeEnhancer } from "./life-enhancer.js?v=28";
 import { installPsychologyBridge } from "./psychology.js?v=1";
 import { installPsychologyPhase2Bridge } from "./psychology-phase2.js?v=1";
 import { installPsychologyPhase3Bridge } from "./psychology-phase3.js?v=1";
@@ -52,6 +52,8 @@ function renderFamilyTree() {
   const state = readState();
   const screen = document.querySelector(".screen");
   if (!state || !screen || token !== renderToken) return;
+  if (screen.dataset.familyTreeEnhanced === "1") return;
+  screen.dataset.familyTreeEnhanced = "1";
   screen.innerHTML = `${tabs()}${familyTreeContent(state)}`;
   bind(screen);
 }
