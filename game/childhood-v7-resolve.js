@@ -1,4 +1,4 @@
-import { applyChildhoodEffect, childhoodEventForState, commitChildhoodEvent, ensureChildhoodState } from "./childhood-v8.js?v=1";
+import { applyChildhoodEffect, childhoodEventForState, commitChildhoodEvent, ensureChildhoodState } from "./childhood-v9.js?v=1";
 import { syncPsychologyEventIntegration } from "./psychology-events-v2.js?v=1";
 
 const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, value));
@@ -48,6 +48,7 @@ function continuityKind(event) {
   if (event?.childhoodDepthKind === "interaction") return "player-initiated-relationship";
   if (event?.schoolCoherenceKey) return "school-coherence-v1";
   if (event?.relationshipContinuityKey) return "relationship-continuity-v2";
+  if (event?.schoolTrendId) return "school-trend-v1";
   return "childhood-v7";
 }
 
@@ -69,7 +70,7 @@ export function resolveChildhoodChoice(state, choiceId) {
     choice: choice.label,
     result: choice.result,
     continuity: continuityKind(event),
-    personId: event.relationshipPersonId || event.childhoodPersonId || null,
+    personId: event.relationshipPersonId || event.childhoodPersonId || event.schoolTrendParentId || null,
     schoolYearIndex: event.schoolCoherenceYearIndex ?? null,
     psychologyContext: event.psychologyContext || null,
     psychologyLens: event.psychologyLens || null,
