@@ -36,42 +36,102 @@
   function rng(seed){var v=seed>>>0;return function(){v=(v*1664525+1013904223)>>>0;return v/4294967296}}
   function pick(r,a){return a[Math.floor(r()*a.length)]}
   function n(r,a,b){return Math.round(a+r()*(b-a))}
-  function rel(r,role,name,age,intro,label,sex){return{id:role+"-"+name.toLowerCase().replace(/[^a-z0-9]+/g,"-"),role:role,name:name,age:age,introducedAtMonths:intro||0,relationshipLabel:label||role,sex:sex||null,closeness:n(r,48,72),trust:n(r,48,72),affection:n(r,55,78),conflict:n(r,5,20),familiarity:n(r,50,72),lastInteractionAtMonths:intro||0,history:[],npc:{outsideStress:n(r,20,48),availability:n(r,58,82),socialWorld:n(r,28,64),currentThread:"",lastChangedAtMonths:0}}}
+  function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
+  function differentLast(r,last){var next=pick(r,LAST),tries=0;while(next===last&&tries<8){next=pick(r,LAST);tries++}return next}
+  function rel(r,role,name,age,intro,label,sex,family){return{id:role+"-"+name.toLowerCase().replace(/[^a-z0-9]+/g,"-"),role:role,name:name,age:age,introducedAtMonths:intro||0,relationshipLabel:label||role,sex:sex||null,closeness:n(r,48,72),trust:n(r,48,72),affection:n(r,55,78),conflict:n(r,5,20),familiarity:n(r,50,72),lastInteractionAtMonths:intro||0,history:[],family:family||{},npc:{outsideStress:n(r,20,48),availability:n(r,58,82),socialWorld:n(r,28,64),currentThread:"",lastChangedAtMonths:0}}}
   function siblingCount(r){var x=r();return x<.42?0:x<.76?1:x<.93?2:3}
   function buildFamily(r,last){
-    var people=[],story="",roll=r(),mother=pick(r,WOMEN)+" "+last,father=pick(r,MEN)+" "+last,otherLast=pick(r,LAST),stepmother=pick(r,WOMEN)+" "+otherLast,stepfather=pick(r,MEN)+" "+otherLast;
-    function add(role,name,age,label,sex){var p=rel(r,role,name,age,0,label,sex);people.push(p);return p}
-    if(roll<.34){add("guardian",mother,n(r,24,37),"Mother","Female");add("secondGuardian",father,n(r,25,40),"Father","Male");story="You were born to "+mother+" and "+father+", who are raising you together."}
-    else if(roll<.46){add("guardian",mother,n(r,25,38),"Mother","Female");add("secondGuardian",stepfather,n(r,27,42),"Stepfather","Male");story="Your biological father died before you were born. Your mother, "+mother+", is raising you with her husband, "+stepfather+"."}
-    else if(roll<.56){add("guardian",father,n(r,26,40),"Father","Male");add("secondGuardian",stepmother,n(r,25,39),"Stepmother","Female");story="Your biological mother died before you were born. Your father, "+father+", is raising you with his wife, "+stepmother+"."}
-    else if(roll<.66){add("guardian",mother,n(r,23,38),"Mother","Female");story="Your parents separated before you were born. Your mother, "+mother+", is your only parent at home; your father lives elsewhere."}
-    else if(roll<.76){add("guardian",father,n(r,24,40),"Father","Male");story=r()<.3?"Your parents' relationship ended after your mother became involved with someone else. You live with your father, "+father+", who is raising you on his own.":"Your mother is not part of your household. You live with your father, "+father+", who is raising you on his own."}
-    else if(roll<.86){add("guardian",pick(r,WOMEN)+" "+last,n(r,28,42),"Adoptive mother","Female");add("secondGuardian",pick(r,MEN)+" "+last,n(r,29,44),"Adoptive father","Male");story="You were adopted at birth. The two people taking you home are your adoptive parents."}
-    else if(roll<.91){var aunt=pick(r,WOMEN)+" "+last,uncle=pick(r,MEN)+" "+last;add("guardian",aunt,n(r,29,45),"Aunt / guardian","Female");add("secondGuardian",uncle,n(r,30,47),"Uncle / guardian","Male");story="Your biological parents cannot care for you, so you are being raised by your aunt, "+aunt+", and uncle, "+uncle+"."}
-    else if(roll<.97){var gm=pick(r,LOLA),gf=pick(r,LOLO);add("guardian",gm,n(r,54,69),"Grandmother / guardian","Female");add("secondGuardian",gf,n(r,56,73),"Grandfather / guardian","Male");story="Your parents are not able to raise you. From the beginning, "+gm+" and "+gf+" are the people bringing you home."}
-    else {var fm=pick(r,WOMEN)+" "+last,ff=pick(r,MEN)+" "+last;add("guardian",fm,n(r,29,43),"Foster mother","Female");add("secondGuardian",ff,n(r,30,45),"Foster father","Male");story=r()<.45?"You were found abandoned shortly after birth, alive in a rubbish bin. After emergency care, you were placed with foster parents "+fm+" and "+ff+".":"You were abandoned shortly after birth and entered foster care. "+fm+" and "+ff+" are the first parents you know."}
+    var people=[],story="",roll=r(),scenario="together",maternalLast=differentLast(r,last),motherAge=n(r,23,38),fatherAge=n(r,24,40),motherName=pick(r,WOMEN)+" "+maternalLast,fatherName=pick(r,MEN)+" "+last,mother=null,father=null;
+    var graph={version:1,biological:{known:true,motherId:null,fatherId:null,note:""},caregivers:[],siblings:[],caregiverType:"biological",branches:[]};
+    function add(role,name,age,label,sex,family){var p=rel(r,role,name,age,0,label,sex,family);people.push(p);return p}
+    function markCaregiver(person){if(person&&graph.caregivers.indexOf(person.id)<0)graph.caregivers.push(person.id)}
+    function makeParent(role,name,age,label,sex,branch,caregiver,household){var p=add(role,name,age,label,sex,{branch:branch,generation:"parent",kinship:"biological",caregiver:!!caregiver,household:!!household,parentIds:[]});if(caregiver)markCaregiver(p);return p}
+    function addBranch(key,label,parent,branchLast,guardianGrandparents){
+      var grandparentIds=[],relativeIds=[],cousinIds=[],baseAge=parent?parent.age:n(r,25,38),gmAge=Math.min(82,baseAge+n(r,20,33)),gfAge=Math.min(84,baseAge+n(r,21,35));
+      var gmRole=guardianGrandparents?"guardian":"grandmother",gfRole=guardianGrandparents?"secondGuardian":"grandfather";
+      var gmLabel=label.replace(" family","")+" grandmother"+(guardianGrandparents?" / guardian":""),gfLabel=label.replace(" family","")+" grandfather"+(guardianGrandparents?" / guardian":"");
+      var gm=add(gmRole,pick(r,LOLA)+" "+branchLast,gmAge,gmLabel,"Female",{branch:key,generation:"grandparent",kinship:"biological",caregiver:!!guardianGrandparents,household:!!guardianGrandparents,parentIds:[],childIds:parent?[parent.id]:[]});
+      var gf=add(gfRole,pick(r,LOLO)+" "+branchLast,gfAge,gfLabel,"Male",{branch:key,generation:"grandparent",kinship:"biological",caregiver:!!guardianGrandparents,household:!!guardianGrandparents,parentIds:[],childIds:parent?[parent.id]:[]});
+      gm.family.partnerId=gf.id;gf.family.partnerId=gm.id;grandparentIds.push(gm.id,gf.id);if(guardianGrandparents){markCaregiver(gm);markCaregiver(gf)}
+      var branch={id:key,label:label,parentId:parent?parent.id:null,grandparentIds:grandparentIds,relativeIds:relativeIds,cousinIds:cousinIds};graph.branches.push(branch);return branch;
+    }
+    function addBranchRelatives(branch,parent,branchLast){
+      var x=r(),count=x<.38?0:x<.82?1:2;
+      for(var j=0;j<count;j++){
+        var female=r()<.5,role=female?"aunt":"uncle",first=female?pick(r,WOMEN):pick(r,MEN),relativeAge=Math.max(20,parent.age+n(r,-6,8)),label=branch.label.replace(" family","")+" "+role;
+        var relative=add(role,(female?"Auntie ":"Uncle ")+first+" "+branchLast,relativeAge,label,female?"Female":"Male",{branch:branch.id,generation:"parent",kinship:"biological",caregiver:false,household:false,parentIds:branch.grandparentIds.slice(),siblingOf:[parent.id]});
+        branch.relativeIds.push(relative.id);
+        var cousinCount=r()<.62?n(r,1,2):0;
+        for(var k=0;k<cousinCount;k++){
+          var cousinSex=r()<.5?"Female":"Male",cn=pick(r,SIB)+" "+branchLast,cousin=add("cousin",cn,n(r,1,12),branch.label.replace(" family","")+" cousin",cousinSex,{branch:branch.id,generation:"child",kinship:"biological",caregiver:false,household:false,parentIds:[relative.id]});
+          branch.cousinIds.push(cousin.id);
+        }
+      }
+    }
+    function addGuardianAunt(branch,parent,branchLast){
+      var aunt=add("guardian","Auntie "+pick(r,WOMEN)+" "+branchLast,Math.max(24,parent.age+n(r,-5,7)),branch.label.replace(" family","")+" aunt / guardian","Female",{branch:branch.id,generation:"parent",kinship:"biological",caregiver:true,household:true,parentIds:branch.grandparentIds.slice(),siblingOf:[parent.id]});
+      var uncle=add("secondGuardian","Uncle "+pick(r,MEN)+" "+differentLast(r,branchLast),n(r,27,47),"Uncle / guardian","Male",{branch:branch.id,generation:"parent",kinship:"by marriage",caregiver:true,household:true,parentIds:[],partnerId:aunt.id});
+      aunt.family.partnerId=uncle.id;branch.relativeIds.push(aunt.id);markCaregiver(aunt);markCaregiver(uncle);return[aunt,uncle]
+    }
+
+    if(roll<.34)scenario="together";
+    else if(roll<.46)scenario="father_died";
+    else if(roll<.56)scenario="mother_died";
+    else if(roll<.66)scenario="single_mother";
+    else if(roll<.76)scenario="single_father";
+    else if(roll<.86)scenario="adopted";
+    else if(roll<.91)scenario="aunt_guardians";
+    else if(roll<.97)scenario="grandparent_guardians";
+    else scenario="foster";
+
+    if(scenario==="adopted"){
+      graph.biological={known:false,motherId:null,fatherId:null,note:"Your biological family is not known to you at the start of your life."};graph.caregiverType="adoptive";
+      var am=add("guardian",pick(r,WOMEN)+" "+last,n(r,28,42),"Adoptive mother","Female",{branch:"adoptive-maternal",generation:"parent",kinship:"adoptive",caregiver:true,household:true,parentIds:[]});
+      var af=add("secondGuardian",pick(r,MEN)+" "+last,n(r,29,44),"Adoptive father","Male",{branch:"adoptive-paternal",generation:"parent",kinship:"adoptive",caregiver:true,household:true,parentIds:[]});
+      markCaregiver(am);markCaregiver(af);var ab1=addBranch("adoptive-maternal","Adoptive mother's family",am,differentLast(r,last),false),ab2=addBranch("adoptive-paternal","Adoptive father's family",af,last,false);addBranchRelatives(ab1,am,maternalLast);addBranchRelatives(ab2,af,last);story="You were adopted at birth. "+am.name+" and "+af.name+" are the parents taking you home.";
+    }else if(scenario==="foster"){
+      graph.biological={known:false,motherId:null,fatherId:null,note:"Your biological family is unknown or absent at the start of your life."};graph.caregiverType="foster";
+      var fm=add("guardian",pick(r,WOMEN)+" "+last,n(r,29,43),"Foster mother","Female",{branch:"foster",generation:"parent",kinship:"foster",caregiver:true,household:true,parentIds:[]}),ff=add("secondGuardian",pick(r,MEN)+" "+last,n(r,30,45),"Foster father","Male",{branch:"foster",generation:"parent",kinship:"foster",caregiver:true,household:true,parentIds:[]});markCaregiver(fm);markCaregiver(ff);story=r()<.45?"You were found abandoned shortly after birth, alive in a rubbish bin. After emergency care, you were placed with foster parents "+fm.name+" and "+ff.name+".":"You were abandoned shortly after birth and entered foster care. "+fm.name+" and "+ff.name+" are the first parents you know.";
+    }else{
+      var motherRole=(scenario==="together"||scenario==="father_died"||scenario==="single_mother")?"guardian":"parent",fatherRole=(scenario==="together"||scenario==="mother_died"||scenario==="single_father")?(motherRole==="guardian"?"secondGuardian":"guardian"):"parent";
+      var motherCare=motherRole==="guardian"||motherRole==="secondGuardian",fatherCare=fatherRole==="guardian"||fatherRole==="secondGuardian";
+      mother=makeParent(motherRole,motherName,motherAge,scenario==="mother_died"||scenario==="single_father"||scenario==="aunt_guardians"||scenario==="grandparent_guardians"?"Biological mother":"Mother","Female","maternal",motherCare,motherCare);
+      father=makeParent(fatherRole,fatherName,fatherAge,scenario==="father_died"||scenario==="single_mother"||scenario==="aunt_guardians"||scenario==="grandparent_guardians"?"Biological father":"Father","Male","paternal",fatherCare,fatherCare);
+      graph.biological.motherId=mother.id;graph.biological.fatherId=father.id;
+      if(scenario==="father_died"){father.deceased=true;father.diedAtAge=father.age;father.family.household=false;var sf=add("secondGuardian",pick(r,MEN)+" "+differentLast(r,last),n(r,27,42),"Stepfather","Male",{branch:"household",generation:"parent",kinship:"step",caregiver:true,household:true,parentIds:[],partnerId:mother.id});mother.family.partnerId=sf.id;markCaregiver(sf);graph.caregiverType="step";story="Your biological father died before you were born. Your mother, "+mother.name+", is raising you with her husband, "+sf.name+"."}
+      if(scenario==="mother_died"){mother.deceased=true;mother.diedAtAge=mother.age;mother.family.household=false;var sm=add("secondGuardian",pick(r,WOMEN)+" "+differentLast(r,last),n(r,25,39),"Stepmother","Female",{branch:"household",generation:"parent",kinship:"step",caregiver:true,household:true,parentIds:[],partnerId:father.id});father.family.partnerId=sm.id;markCaregiver(sm);graph.caregiverType="step";story="Your biological mother died before you were born. Your father, "+father.name+", is raising you with his wife, "+sm.name+"."}
+      if(scenario==="single_mother"){father.family.household=false;graph.caregiverType="single";story="Your parents separated before you were born. Your mother, "+mother.name+", is raising you; your father, "+father.name+", lives elsewhere."}
+      if(scenario==="single_father"){mother.family.household=false;graph.caregiverType="single";story=r()<.3?"Your parents' relationship ended after your mother became involved with someone else. You live with your father, "+father.name+"; your mother, "+mother.name+", lives elsewhere.":"Your mother, "+mother.name+", is not part of your household. You live with your father, "+father.name+", who is raising you on his own."}
+      if(scenario==="together")story="You were born to "+mother.name+" and "+father.name+", who are raising you together.";
+      var guardianSide=scenario==="grandparent_guardians"?(r()<.5?"maternal":"paternal"):null;
+      var mb=addBranch("maternal","Maternal family",mother,maternalLast,guardianSide==="maternal"),pb=addBranch("paternal","Paternal family",father,last,guardianSide==="paternal");
+      if(scenario==="aunt_guardians"){
+        graph.caregiverType="kinship";var side=r()<.5?"maternal":"paternal",chosen=side==="maternal"?mb:pb,parent=side==="maternal"?mother:father,branchLast=side==="maternal"?maternalLast:last,guards=addGuardianAunt(chosen,parent,branchLast);story="Your biological parents cannot care for you, so you are being raised by your "+side+" aunt, "+guards[0].name+", and her husband, "+guards[1].name+".";
+      }
+      if(scenario==="grandparent_guardians"){
+        graph.caregiverType="grandparent";var gb=guardianSide==="maternal"?mb:pb,gp=gb.grandparentIds.map(function(id){return people.find(function(p){return p.id===id})});story="Your parents are not able to raise you. From the beginning, "+gp[0].name+" and "+gp[1].name+" are the people bringing you home.";
+      }
+      addBranchRelatives(mb,mother,maternalLast);addBranchRelatives(pb,father,last);
+    }
 
     var count=siblingCount(r),sibNames=[];
-    for(var i=0;i<count;i++){var sn=pick(r,SIB)+" "+last;while(sibNames.indexOf(sn)>=0)sn=pick(r,SIB)+" "+last;sibNames.push(sn);add("sibling",sn,n(r,1,8),i===0?"Sibling":"Sibling","Male")}
+    for(var i=0;i<count;i++){
+      var sn=pick(r,SIB)+" "+last;while(sibNames.indexOf(sn)>=0)sn=pick(r,SIB)+" "+last;sibNames.push(sn);var sx=r()<.5?"Female":"Male",baseLabel=sx==="Female"?"Sister":"Brother",kinship="biological",parentIds=[];
+      if(graph.biological.known){parentIds=[graph.biological.motherId,graph.biological.fatherId].filter(Boolean);if(r()<.18){kinship="half";parentIds=[pick(r,parentIds)];baseLabel="Half-"+(sx==="Female"?"sister":"brother")}}
+      else if(graph.caregiverType==="adoptive"){kinship="adoptive";parentIds=graph.caregivers.slice();baseLabel="Adoptive "+(sx==="Female"?"sister":"brother")}
+      else{kinship="foster";parentIds=graph.caregivers.slice();baseLabel="Foster "+(sx==="Female"?"sister":"brother")}
+      var sib=add("sibling",sn,n(r,1,8),baseLabel,sx,{branch:"your-generation",generation:"child",kinship:kinship,caregiver:false,household:true,parentIds:parentIds});graph.siblings.push(sib.id)
+    }
     var siblingText=count===0?"You are an only child.":count===1?"You have one sibling, "+sibNames[0]+".":"You have "+count+" siblings: "+sibNames.join(", ")+".";
-
-    var extended=[];
-    if(r()<.67){var lg=pick(r,LOLA);add("grandmother",lg,n(r,52,72),"Grandmother","Female");extended.push(lg)}
-    if(r()<.58){var lo=pick(r,LOLO);add("grandfather",lo,n(r,54,76),"Grandfather","Male");extended.push(lo)}
-    var auntCount=r()<.55?n(r,1,2):0,uncleCount=r()<.5?n(r,1,2):0;
-    for(i=0;i<auntCount;i++){var an="Auntie "+pick(r,WOMEN);add("aunt",an+" "+pick(r,LAST),n(r,24,48),"Aunt","Female");extended.push(an)}
-    for(i=0;i<uncleCount;i++){var un="Uncle "+pick(r,MEN);add("uncle",un+" "+pick(r,LAST),n(r,25,50),"Uncle","Male");extended.push(un)}
-    var cousins=(auntCount+uncleCount)&&r()<.72?n(r,1,4):0;
-    for(i=0;i<cousins;i++){add("cousin",pick(r,SIB)+" "+pick(r,LAST),n(r,1,12),"Cousin",r()>.5?"Female":"Male")}
-    var extendedText=extended.length?"Beyond your home, your family already includes "+extended.join(", ")+(cousins?", and "+cousins+" cousin"+(cousins===1?"":"s")+".":"."):"Your extended family is small or distant at the start of your life.";
-    return{people:people,story:story,siblingText:siblingText,extendedText:extendedText};
+    var extendedPeople=people.filter(function(p){return p.family&&(p.family.generation==="grandparent"||p.role==="aunt"||p.role==="uncle")&&!p.family.caregiver}),cousins=people.filter(function(p){return p.role==="cousin"}).length,names=extendedPeople.slice(0,4).map(function(p){return p.name}),extendedText=names.length?"Your wider family includes "+names.join(", ")+(extendedPeople.length>4?", and other relatives":"")+(cousins?", plus "+cousins+" cousin"+(cousins===1?"":"s")+".":"."):"Your extended family is small or not yet known to you.";
+    return{people:people,story:story,siblingText:siblingText,extendedText:extendedText,graph:graph};
   }
   function makeLife(){
     var seed=(Date.now()^Math.floor(Math.random()*0x7fffffff))>>>0,r=rng(seed||1),first=pick(r,FIRST),last=pick(r,LAST),place=pick(r,PLACES),financeRoll=r(),band=financeRoll<.28?"Tight":financeRoll<.76?"Getting by":"Comfortable",month=n(r,0,11),family=buildFamily(r,last);
     var personality={social:n(r,38,62),risk:n(r,38,62),structure:n(r,38,62),sensitivity:n(r,38,62),curiosity:n(r,42,68),independence:n(r,35,58)};
-    var people=family.people.concat([rel(r,"friend",pick(r,FRIEND)+" "+pick(r,LAST),0,60,"Friend"),rel(r,"teacher",pick(r,["Ms. Santos","Mr. Lim","Ms. Rivera","Mr. Cruz"]),n(r,27,49),60,"Teacher")]);
-    var householdSize=family.people.filter(function(p){return p.role==="guardian"||p.role==="secondGuardian"||p.role==="sibling"}).length;
-    return{version:2,seed:seed||1,rngState:(seed||1)^0x9e3779b9,character:{firstName:first,lastName:last,sex:r()>.5?"Female":"Male",birthplace:place.city+", "+place.country,ageMonths:0,birthYear:2026,birthMonth:month,personality:personality},date:{year:2026,month:month,day:n(r,3,25)},household:{name:"The "+last+" Family Home",housing:place.housing,city:place.city,country:place.country,neighborhood:place.neighborhood,financeBand:band,privacy:householdSize>=4?"Limited":"Moderate",comfort:band==="Comfortable"?"Comfortable":band==="Tight"?"Basic":"Modest",savings:band==="Comfortable"?n(r,30000,90000):band==="Tight"?n(r,0,5000):n(r,6000,25000)},family:{originStory:family.story,siblingSummary:family.siblingText,extendedSummary:family.extendedText},health:{wellbeing:n(r,64,82),energy:n(r,62,82),stress:n(r,12,28)},interests:{drawing:n(r,15,30),reading:n(r,15,30),gardening:n(r,10,24),cooking:n(r,10,24),gaming:n(r,10,24),music:n(r,10,24),making:n(r,15,30)},education:{subjects:{mathematics:n(r,42,62),language:n(r,42,62),science:n(r,42,62),art:n(r,42,62),physicalEducation:n(r,42,62)}},money:{savings:0},people:people,memories:[],history:[],worldEvents:[],recentEventIds:[],currentEventId:"held_after_crying",resolution:null,completed:false};
+    var people=family.people.concat([rel(r,"friend",pick(r,FRIEND)+" "+pick(r,LAST),0,60,"Friend",null,{branch:"outside",generation:"peer",kinship:"none",caregiver:false,household:false}),rel(r,"teacher",pick(r,["Ms. Santos","Mr. Lim","Ms. Rivera","Mr. Cruz"]),n(r,27,49),60,"Teacher",null,{branch:"outside",generation:"adult",kinship:"none",caregiver:false,household:false})]);
+    var householdSize=family.people.filter(function(p){return p.family&&p.family.household}).length;
+    return{version:2,seed:seed||1,rngState:(seed||1)^0x9e3779b9,character:{firstName:first,lastName:last,sex:r()>.5?"Female":"Male",birthplace:place.city+", "+place.country,ageMonths:0,birthYear:2026,birthMonth:month,personality:personality},date:{year:2026,month:month,day:n(r,3,25)},household:{name:"The "+last+" Family Home",housing:place.housing,city:place.city,country:place.country,neighborhood:place.neighborhood,financeBand:band,privacy:householdSize>=4?"Limited":"Moderate",comfort:band==="Comfortable"?"Comfortable":band==="Tight"?"Basic":"Modest",savings:band==="Comfortable"?n(r,30000,90000):band==="Tight"?n(r,0,5000):n(r,6000,25000)},family:{originStory:family.story,siblingSummary:family.siblingText,extendedSummary:family.extendedText,graph:family.graph},health:{wellbeing:n(r,64,82),energy:n(r,62,82),stress:n(r,12,28)},interests:{drawing:n(r,15,30),reading:n(r,15,30),gardening:n(r,10,24),cooking:n(r,10,24),gaming:n(r,10,24),music:n(r,10,24),making:n(r,15,30)},education:{subjects:{mathematics:n(r,42,62),language:n(r,42,62),science:n(r,42,62),art:n(r,42,62),physicalEducation:n(r,42,62)}},money:{savings:0},people:people,memories:[],history:[],worldEvents:[],recentEventIds:[],currentEventId:"held_after_crying",resolution:null,completed:false};
   }
   function save(x){localStorage.setItem(KEY,JSON.stringify(x))}
   function read(){try{var x=JSON.parse(localStorage.getItem(KEY));return x&&x.version===2&&x.character&&x.household?x:null}catch(e){return null}}
@@ -85,7 +145,7 @@
   function begin(mode,data){var life=makeLife();if(mode==="custom")customize(life,data);life.startMode=mode;life.introPending=true;save(life);intro(life)}
   function normalize(life){if(!life||life.character.ageMonths>=36||life.currentEventId!=="family_evening")return;life.resolution=null;life.currentEventId=life.character.ageMonths<12?"held_after_crying":life.character.ageMonths<24?"cupboard_discovery":"playground_edge"}
   function error(msg){shell('<div class="setup-header"><p class="brand">Little Days</p><h1>Something didn\'t load.</h1><p>'+msg+'</p></div><button class="setup-primary" onclick="location.reload()">Reload</button>')}
-  function play(){var life=read();if(!life){choice();return}life.introPending=false;normalize(life);save(life);shell('<div class="setup-header"><p class="brand">Little Days</p><h1>Opening your life…</h1><p>One moment.</p></div>');var done=false;import("./app.js?v=17").then(function(game){if(game&&typeof game.initializeApp==="function")game.initializeApp();done=true}).catch(function(){done=true;error("The life was saved, but the game screen could not open. Reload once to try again.")});setTimeout(function(){if(!done||!document.querySelector(".screen"))error("The game took too long to open. Your life is saved, so reloading will not erase it.")},4000)}
+  function play(){var life=read();if(!life){choice();return}life.introPending=false;normalize(life);save(life);shell('<div class="setup-header"><p class="brand">Little Days</p><h1>Opening your life…</h1><p>One moment.</p></div>');var done=false;import("./app.js?v=18").then(function(game){if(game&&typeof game.initializeApp==="function")game.initializeApp();done=true}).catch(function(){done=true;error("The life was saved, but the game screen could not open. Reload once to try again.")});setTimeout(function(){if(!done||!document.querySelector(".screen"))error("The game took too long to open. Your life is saved, so reloading will not erase it.")},4000)}
   window.LittleDaysStart={random:function(){begin("random")},custom:custom,choice:choice,play:play};
   document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("[data-new-life]");if(!b)return;e.preventDefault();e.stopPropagation();if(confirm("Begin a different life? Your current childhood will be replaced.")){localStorage.removeItem(KEY);choice();scrollTo(0,0)}},true);
   var existing=read();if(existing){normalize(existing);save(existing);existing.introPending?intro(existing):play()}else choice();
