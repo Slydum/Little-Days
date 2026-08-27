@@ -16,7 +16,7 @@ import {
   relationshipLabel,
   resolveChoice,
   schoolSnapshot,
-} from "./game/engine.js?v=22";
+} from "./game/engine.js?v=24";
 import {
   advanceRealism,
   deathSummary,
@@ -24,11 +24,11 @@ import {
   getAroundYou,
   getBirthdayRecap,
   healthSnapshot,
-} from "./game/realism.js?v=22";
-import { contextualEventForState, resolveContextualChoice } from "./game/contextual-events.js?v=22";
-import { syncHouseholdMembership } from "./game/household-membership.js?v=22";
-import { advanceChildhoodWorld, childhoodEventForState, ensureChildhoodState, socialSnapshot } from "./game/childhood-v2.js?v=22";
-import { resolveChildhoodChoice } from "./game/childhood-v2-resolve.js?v=22";
+} from "./game/realism.js?v=24";
+import { contextualEventForState, resolveContextualChoice } from "./game/contextual-events.js?v=24";
+import { syncHouseholdMembership } from "./game/household-membership.js?v=24";
+import { advanceChildhoodWorld, childhoodEventForState, ensureChildhoodState, socialSnapshot } from "./game/childhood-v2.js?v=24";
+import { resolveChildhoodChoice } from "./game/childhood-v2-resolve.js?v=24";
 
 const STORAGE_KEY = "little-days-save-v2";
 
@@ -160,7 +160,7 @@ function peopleTabs(active) {
 function peopleSharedStyles() {
   return `<style>
     .people-tabs{display:grid;grid-template-columns:1fr 1fr;margin:-4px 0 10px;border-bottom:1px solid var(--line)}
-    .people-tab{-webkit-appearance:none;appearance:none;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);padding:10px 6px;font:inherit;font-size:11px;cursor:pointer}
+    .people-tab{-webkit-appearance:none;appearance:none;width:100%;margin:0;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:var(--muted);padding:10px 6px;font:inherit;font-size:11px;cursor:pointer}
     .people-tab.active{color:var(--ink);border-bottom-color:var(--sage);font-weight:700}
     .person-card-button{-webkit-appearance:none;appearance:none;width:100%;margin:0;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;color:var(--ink);text-align:left;font:inherit;cursor:pointer}
     .person-card-button:last-child{border-bottom:0}
