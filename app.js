@@ -16,7 +16,7 @@ import {
   relationshipLabel,
   resolveChoice,
   schoolSnapshot,
-} from "./game/engine.js?v=21";
+} from "./game/engine.js?v=22";
 import {
   advanceRealism,
   deathSummary,
@@ -24,9 +24,11 @@ import {
   getAroundYou,
   getBirthdayRecap,
   healthSnapshot,
-} from "./game/realism.js?v=21";
-import { contextualEventForState, resolveContextualChoice } from "./game/contextual-events.js?v=21";
-import { syncHouseholdMembership } from "./game/household-membership.js?v=21";
+} from "./game/realism.js?v=22";
+import { contextualEventForState, resolveContextualChoice } from "./game/contextual-events.js?v=22";
+import { syncHouseholdMembership } from "./game/household-membership.js?v=22";
+import { advanceChildhoodWorld, childhoodEventForState, ensureChildhoodState, socialSnapshot } from "./game/childhood-v2.js?v=22";
+import { resolveChildhoodChoice } from "./game/childhood-v2-resolve.js?v=22";
 
 const STORAGE_KEY = "little-days-save-v2";
 
@@ -40,7 +42,7 @@ function loadState() {
   return createNewLife();
 }
 
-let state = syncHouseholdMembership(ensureRealismState(loadState()));
+let state = ensureChildhoodState(syncHouseholdMembership(ensureRealismState(loadState())));
 let toastTimer;
 let initialized = false;
 
@@ -113,10 +115,13 @@ function lifeScreen() {
   }
 
   const contextualEvent = contextualEventForState(state);
-  const event = contextualEvent || getCurrentEvent(state);
+  const childhoodEvent = state.resolution?.childhoodEvent || childhoodEventForState(state);
+  const contextualHasPriority = contextualEvent && ["illness", "recovery", "thread", "development"].includes(contextualEvent.contextKind);
+  const event = contextualHasPriority ? contextualEvent : (childhoodEvent || contextualEvent || getCurrentEvent(state));
   const indicators = lifeIndicators(state);
   const resolvedChoice = state.resolution?.choiceId;
-  const choiceAttribute = contextualEvent ? "data-context-choice" : "data-choice";
+  const usingChildhood = Boolean(childhoodEvent && event === childhoodEvent);
+  const choiceAttribute = usingChildhood ? "data-childhood-choice" : contextualEvent && event === contextualEvent ? "data-context-choice" : "data-choice";
   return shell(`
     ${brand()}
     <h1 class="age-title">${getAgeLabel(state)}</h1>
@@ -168,13 +173,17 @@ function peopleSharedStyles() {
 }
 
 function peopleScreen() {
-  const age = getAgeYears(state);
   const people = getVisiblePeople(state);
+  const social = socialSnapshot(state);
   return shell(`${peopleSharedStyles()}${brand("People")}${peopleTabs("people")}<div class="people-list">${people.map(person=>{
     const relation = person.deceased ? "Remembered" : relationshipLabel(person);
+    const isCrush = social.crush?.id === person.id;
     const copy = person.deceased ? (person.npc?.currentThread || `${person.name} is no longer alive.`) : relationshipCopy(person);
-    const meta = person.deceased ? `Died at age ${person.diedAtAge}` : person.role==="friend" ? `Known for — ${Math.max(0,age-5)} year${Math.max(0,age-5)===1?"":"s"}` : `Age — ${person.age+age}`;
-    return `<button class="person-card person-card-button" data-person-id="${person.id}"><div class="avatar" aria-hidden="true">${personInitial(person)}</div><div><h2 class="person-name">${person.name}</h2><p class="person-role">${personRole(person)} — ${relation}</p><p class="person-copy">${copy}</p><p class="person-meta">${meta} · View profile</p></div></button>`;
+    const knownMonths = Math.max(0, state.character.ageMonths - (person.introducedAtMonths || 0));
+    const knownYears = Math.floor(knownMonths / 12);
+    const knownText = knownYears > 0 ? `Known for — ${knownYears} year${knownYears===1?"":"s"}` : knownMonths > 0 ? `Known for — ${knownMonths} month${knownMonths===1?"":"s"}` : "Recently met";
+    const meta = person.deceased ? `Died at age ${person.diedAtAge}` : person.role==="friend" ? knownText : `Age — ${person.age+getAgeYears(state)}`;
+    return `<button class="person-card person-card-button" data-person-id="${person.id}"><div class="avatar" aria-hidden="true">${personInitial(person)}</div><div><h2 class="person-name">${person.name}</h2><p class="person-role">${personRole(person)} — ${relation}${isCrush?" · Crush":""}</p><p class="person-copy">${copy}</p><p class="person-meta">${meta} · View profile</p></div></button>`;
   }).join("")}</div>`,"people");
 }
 
@@ -270,6 +279,8 @@ function personProfileScreen(id) {
   const age = getAgeYears(state);
   const realism = person.npc?.realism || {};
   const social = person.npc?.socialWorld ?? 50;
+  const socialWorld = socialSnapshot(state);
+  const isCrush = socialWorld.crush?.id === person.id;
   const patience = 100 - (person.conflict ?? 20);
   const steadiness = 100 - (person.npc?.outsideStress ?? 35);
   const warmth = Math.round(((person.affection ?? 60) + (person.closeness ?? 55)) / 2);
@@ -283,11 +294,11 @@ function personProfileScreen(id) {
   const current = person.npc?.currentThread || (person.deceased ? "They are remembered as part of your life." : relationshipCopy(person));
   const relation = person.deceased ? "Remembered" : relationshipLabel(person);
   const currentAge = person.deceased ? `Died at age ${person.diedAtAge}` : `Age ${person.age + age}`;
-  const history = [...(person.history || [])].slice(-4).reverse();
+  const history = [...(person.history || [])].slice(-6).reverse();
   const styles = `<style>
     .person-profile-head{text-align:center;padding:5px 0 12px}.profile-avatar{width:72px;height:72px;margin:0 auto 10px;border:1px solid var(--line-strong);border-radius:999px;display:grid;place-items:center;font-family:var(--serif);font-size:32px;background:#f4efe5}.profile-name{margin:0;font-family:var(--serif);font-size:27px;font-weight:500}.profile-role{margin:4px 0;color:var(--muted);font-size:12px}.profile-back{-webkit-appearance:none;appearance:none;border:0;background:transparent;padding:4px 0 12px;color:var(--sage);font-size:12px;cursor:pointer}.profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 16px}.profile-fact{border-top:1px solid var(--line);padding:9px 0}.profile-fact span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.profile-fact strong{display:block;margin-top:2px;font-family:var(--serif);font-size:15px;font-weight:500}.personality-row{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding:9px 0;font-size:12px}.personality-row:last-child{border-bottom:1px solid var(--line)}.personality-row strong{font-weight:500;text-align:right}.profile-section{margin-top:18px}.profile-section h2{margin:0 0 6px;font-family:var(--serif);font-size:18px;font-weight:500}.profile-section p{margin:0;font-size:12px;line-height:1.5}
   </style>`;
-  return shell(`${styles}<button class="profile-back" data-route="people">‹ People</button>${brand()}<div class="person-profile-head"><div class="profile-avatar">${personInitial(person)}</div><h1 class="profile-name">${person.name}</h1><p class="profile-role">${personRole(person)} · ${relation}</p></div><div class="profile-grid"><div class="profile-fact"><span>Age</span><strong>${currentAge}</strong></div><div class="profile-fact"><span>Sex</span><strong>${person.sex || "Unknown"}</strong></div><div class="profile-fact"><span>Interest</span><strong>${realism.interest || "Not known yet"}</strong></div><div class="profile-fact"><span>Work</span><strong>${work || (person.role==="sibling"||person.role==="cousin" ? "Child" : "Not known")}</strong></div></div><section class="profile-section"><h2>Personality</h2>${personality.map(([label,value])=>`<div class="personality-row"><span>${label}</span><strong>${value}</strong></div>`).join("")}</section><section class="profile-section"><h2>Your relationship</h2><p>${current}</p><div class="profile-grid"><div class="profile-fact"><span>Closeness</span><strong>${levelWord(person.closeness ?? 50,"Distant","Growing","Very close")}</strong></div><div class="profile-fact"><span>Trust</span><strong>${levelWord(person.trust ?? 50,"Low","Developing","Strong")}</strong></div></div></section>${realism.health?`<section class="profile-section"><h2>Life lately</h2><p>${realism.health < 45 ? "Their health has been difficult lately." : realism.mental < 45 ? "They seem to be carrying a lot emotionally." : "Their life seems fairly steady at the moment."}${realism.interest?` They are interested in ${realism.interest}.`:""}</p></section>`:""}${history.length?`<section class="profile-section"><h2>Shared history</h2>${history.map(item=>`<p style="margin-bottom:8px">${item.note || item.text || item.result || "A moment you shared became part of your history."}</p>`).join("")}</section>`:""}`,`person/${id}`);
+  return shell(`${styles}<button class="profile-back" data-route="people">‹ People</button>${brand()}<div class="person-profile-head"><div class="profile-avatar">${personInitial(person)}</div><h1 class="profile-name">${person.name}</h1><p class="profile-role">${personRole(person)} · ${relation}${isCrush?" · Your crush":""}</p></div><div class="profile-grid"><div class="profile-fact"><span>Age</span><strong>${currentAge}</strong></div><div class="profile-fact"><span>Sex</span><strong>${person.sex || "Unknown"}</strong></div><div class="profile-fact"><span>Interest</span><strong>${realism.interest || "Not known yet"}</strong></div><div class="profile-fact"><span>Work</span><strong>${work || (["sibling","cousin","friend"].includes(person.role) ? "Student / child" : "Not known")}</strong></div></div>${isCrush?`<section class="profile-section"><h2>How you feel</h2><p>You have a crush on ${person.name.split(" ")[0]}. That describes your feelings, not theirs. The game will not assume the feeling is mutual unless something actually happens between you.</p></section>`:""}<section class="profile-section"><h2>Personality</h2>${personality.map(([label,value])=>`<div class="personality-row"><span>${label}</span><strong>${value}</strong></div>`).join("")}</section><section class="profile-section"><h2>Your relationship</h2><p>${current}</p><div class="profile-grid"><div class="profile-fact"><span>Closeness</span><strong>${levelWord(person.closeness ?? 50,"Distant","Growing","Very close")}</strong></div><div class="profile-fact"><span>Trust</span><strong>${levelWord(person.trust ?? 50,"Low","Developing","Strong")}</strong></div></div></section>${realism.health?`<section class="profile-section"><h2>Life lately</h2><p>${realism.health < 45 ? "Their health has been difficult lately." : realism.mental < 45 ? "They seem to be carrying a lot emotionally." : "Their life seems fairly steady at the moment."}${realism.interest?` They are interested in ${realism.interest}.`:""}</p></section>`:""}${history.length?`<section class="profile-section"><h2>Shared history</h2>${history.map(item=>`<p style="margin-bottom:8px">${item.note || item.text || item.result || "A moment you shared became part of your history."}</p>`).join("")}</section>`:""}`,`person/${id}`);
 }
 
 function selfScreen() {
@@ -314,7 +325,9 @@ function homeScreen() {
 function schoolScreen() {
   const school=schoolSnapshot(state);
   if(!school)return shell(`${brand()}<h1 class="page-title">School</h1><p class="body-note">School has not started yet. For now, most of your world is still home, family, and whatever happens to be within reach.</p>`,"school");
-  return shell(`${brand()}<h1 class="page-title">${school.grade}</h1><table class="subject-table"><caption>Subjects</caption><tbody>${school.subjects.map(([subject,status])=>`<tr><td>${subject}</td><td>${status}</td></tr>`).join("")}</tbody></table><section class="data-section"><div class="data-row">${icons.self}<span class="label">Teacher</span><span class="value">${school.teacher}</span></div><div class="data-row">${icons.book}<span class="label">Closest school friend</span><span class="value">${school.friend}</span></div><div class="data-row">${icons.calendar}<span class="label">Current term</span><span class="value">${school.term}</span></div></section><h2 class="section-title">School lately</h2><p class="body-note">${state.character.personality.social<42?"You tend to watch and listen before volunteering yourself.":state.character.personality.structure>65?"You usually feel best when you understand what is expected of you.":"School is becoming one of the places where more of your personality shows."}</p>`,"school");
+  const social = socialSnapshot(state);
+  const friendNames = social.friends.slice(0,4).map(person=>person.name.split(" ")[0]);
+  return shell(`${brand()}<h1 class="page-title">${school.grade}</h1><table class="subject-table"><caption>Subjects</caption><tbody>${school.subjects.map(([subject,status])=>`<tr><td>${subject}</td><td>${status}</td></tr>`).join("")}</tbody></table><section class="data-section"><div class="data-row">${icons.self}<span class="label">Teacher</span><span class="value">${school.teacher}</span></div><div class="data-row">${icons.people}<span class="label">Friends</span><span class="value">${friendNames.length?friendNames.join(", "):"Still forming"}</span></div>${social.crush?`<div class="data-row">${icons.heart}<span class="label">Crush</span><span class="value">${social.crush.name.split(" ")[0]}</span></div>`:""}<div class="data-row">${icons.calendar}<span class="label">Current term</span><span class="value">${school.term}</span></div></section><h2 class="section-title">School lately</h2><p class="body-note">${state.character.personality.social<42?"You tend to watch and listen before volunteering yourself.":social.friends.length>=3?"School has become a real social world, with different friendships that do not all feel the same.":state.character.personality.structure>65?"You usually feel best when you understand what is expected of you.":"School is becoming one of the places where more of your personality shows."}</p>`,"school");
 }
 
 function healthScreen() {
@@ -324,7 +337,7 @@ function healthScreen() {
 
 function overviewScreen() {
   const overview=lifeOverview(state), rows=[[icons.family,"Family",overview.rows.family],[icons.book,"School",overview.rows.school],[icons.heart,"Friends",overview.rows.friends],[icons.moon,"Health",healthSnapshot(state).physical],[icons.pen,"Interests",overview.rows.interests],[icons.home,"Home",overview.rows.home]];
-  return shell(`${brand("Life")}<p class="life-feeling-label">Life lately</p><p class="life-feeling">${overview.feeling}</p><div>${rows.map(([icon,title,copy])=>`<article class="overview-row"><div>${icon}</div><div><h3>${title}</h3><p>${copy}</p></article>`).join("")}</div>`,"overview");
+  return shell(`${brand("Life")}<p class="life-feeling-label">Life lately</p><p class="life-feeling">${overview.feeling}</p><div>${rows.map(([icon,title,copy])=>`<article class="overview-row"><div>${icon}</div><div><h3>${title}</h3><p>${copy}</p></div></article>`).join("")}</div>`,"overview");
 }
 
 function moreScreen() {
@@ -336,6 +349,7 @@ const screens={life:lifeScreen,people:peopleScreen,"family-tree":familyTreeScree
 
 function render(){
   ensureRealismState(state);
+  ensureChildhoodState(state);
   syncHouseholdMembership(state);
   const route=getRoute();
   const screen=route.startsWith("person/") ? ()=>personProfileScreen(decodeURIComponent(route.slice(7))) : (screens[route]||screens.life);
@@ -343,20 +357,21 @@ function render(){
   bindEvents();
 }
 
-function startNewLife(){if(!window.confirm("Begin a different life? Your current childhood will be replaced."))return;state=syncHouseholdMembership(ensureRealismState(createNewLife()));saveState();location.hash="life";render();showToast(`A new life begins. Meet ${state.character.firstName}.`)}
+function startNewLife(){if(!window.confirm("Begin a different life? Your current childhood will be replaced."))return;state=ensureChildhoodState(syncHouseholdMembership(ensureRealismState(createNewLife())));saveState();location.hash="life";render();showToast(`A new life begins. Meet ${state.character.firstName}.`)}
 
 function bindEvents(){
   document.querySelectorAll("[data-route]").forEach(button=>button.addEventListener("click",()=>{const route=button.dataset.route;if(route!==getRoute())location.hash=route}));
   document.querySelectorAll("[data-person-id]").forEach(button=>button.addEventListener("click",()=>{location.hash=`person/${encodeURIComponent(button.dataset.personId)}`}));
+  document.querySelectorAll("[data-childhood-choice]").forEach(button=>button.addEventListener("click",()=>{resolveChildhoodChoice(state,button.dataset.childhoodChoice);saveState();render();showToast("Choice remembered.")}));
   document.querySelectorAll("[data-context-choice]").forEach(button=>button.addEventListener("click",()=>{resolveContextualChoice(state,button.dataset.contextChoice);saveState();render();showToast("Choice remembered.")}));
   document.querySelectorAll("[data-choice]").forEach(button=>button.addEventListener("click",()=>{resolveChoice(state,button.dataset.choice);saveState();render();showToast("Choice remembered.")}));
-  document.querySelector("#continue-life")?.addEventListener("click",()=>{const before=state.character.ageMonths;continueLife(state);const elapsed=Math.max(0,state.character.ageMonths-before);advanceRealism(state,elapsed,before);syncHouseholdMembership(state);saveState();render();window.scrollTo({top:0,behavior:"smooth"})});
+  document.querySelector("#continue-life")?.addEventListener("click",()=>{const before=state.character.ageMonths;continueLife(state);const elapsed=Math.max(0,state.character.ageMonths-before);advanceChildhoodWorld(state,elapsed,before);advanceRealism(state,elapsed,before);syncHouseholdMembership(state);saveState();render();window.scrollTo({top:0,behavior:"smooth"})});
   document.querySelectorAll("[data-new-life]").forEach(button=>button.addEventListener("click",startNewLife));
 }
 
 function showToast(message){clearTimeout(toastTimer);document.querySelector(".toast")?.remove();const toast=document.createElement("div");toast.className="toast";toast.setAttribute("role","status");toast.textContent=message;document.body.appendChild(toast);toastTimer=setTimeout(()=>toast.remove(),2200)}
 
-export function initializeApp(){ensureRealismState(state);syncHouseholdMembership(state);if(initialized){render();return}initialized=true;saveState();render();if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.getRegistrations().then(registrations=>registrations.forEach(registration=>registration.unregister())).catch(()=>{})}}
+export function initializeApp(){ensureRealismState(state);ensureChildhoodState(state);syncHouseholdMembership(state);if(initialized){render();return}initialized=true;saveState();render();if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.getRegistrations().then(registrations=>registrations.forEach(registration=>registration.unregister())).catch(()=>{})}}
 
 window.addEventListener("hashchange",render);
 if(document.readyState==="loading")window.addEventListener("DOMContentLoaded",initializeApp,{once:true});else initializeApp();
