@@ -1,0 +1,433 @@
+export const continuityEvents = [
+  {
+    id: "sunflowers_bloom",
+    category: "Memory",
+    age: [8, 12],
+    once: true,
+    weight: 4,
+    continuity: "Something from years ago is returning.",
+    requirements: {
+      hasGrandmother: true,
+      history: { eventId: "sunflowers_grandma", choiceId: "help", minMonthsAgo: 6 },
+    },
+    title: "The sunflowers finally bloom",
+    body: "You almost forgot about the seeds you planted with {grandmother.name}. Then one afternoon the flowers are suddenly taller than you expected, bright and slightly ridiculous in the sun.",
+    prompt: "What do you do?",
+    choices: [
+      {
+        id: "take_picture",
+        label: "Take a picture with {grandmother.name}",
+        result: "The picture is badly framed and both of you are squinting. You keep it anyway. Years from now, the flowers will be the least important thing in it.",
+        effects: [
+          { type: "relationship", target: "grandmother", key: "closeness", delta: 5 },
+          { type: "development", key: "attachment", delta: 2 },
+        ],
+        memory: { importance: 4, title: "The sunflowers bloomed", copy: "The seeds you planted with {grandmother.name} eventually grew taller than you expected. You took a picture together." },
+      },
+      {
+        id: "sit_together",
+        label: "Sit outside with her for a while",
+        result: "Neither of you does much. The afternoon settles around the two of you, familiar and unhurried.",
+        effects: [
+          { type: "relationship", target: "grandmother", key: "trust", delta: 4 },
+          { type: "health", key: "stress", delta: -3 },
+        ],
+        memory: { importance: 3, title: "An afternoon beside the sunflowers", copy: "You sat with {grandmother.name} beside flowers the two of you had planted months earlier." },
+      },
+      {
+        id: "notice_then_leave",
+        label: "Notice them, then go back inside",
+        result: "You stop long enough to remember your hands in the soil. Then the rest of your day continues. Not every memory asks for a ceremony.",
+        effects: [{ type: "interest", key: "gardening", delta: 2 }],
+      },
+    ],
+  },
+  {
+    id: "old_drawing_found",
+    category: "Memory",
+    age: [7, 12],
+    once: true,
+    weight: 3.2,
+    continuity: "You find evidence of a younger version of yourself.",
+    requirements: {
+      history: { eventId: "drawing_on_scrap", choiceId: "draw_home", minMonthsAgo: 12 },
+    },
+    title: "A crooked old drawing",
+    body: "While looking through a drawer, you find one of the pictures you made when you were younger. The windows are crooked. Everyone is much too tall. You remember being proud of it.",
+    prompt: "What do you do with it?",
+    choices: [
+      {
+        id: "keep",
+        label: "Put it somewhere safe",
+        result: "You smooth the paper with your hand before putting it back. It is not good, exactly. It is yours, which turns out to be different.",
+        effects: [
+          { type: "interest", key: "drawing", delta: 4 },
+          { type: "development", key: "confidence", delta: 2 },
+        ],
+        memory: { importance: 3, title: "Found an old drawing", copy: "You found a crooked drawing of home that you had made years earlier and decided to keep it." },
+      },
+      {
+        id: "redraw",
+        label: "Draw the same picture again",
+        result: "The new version is obviously better. What surprises you is how much you still recognize in the old one.",
+        requirements: { interest: { key: "drawing", min: 38 } },
+        effects: [
+          { type: "interest", key: "drawing", delta: 6 },
+          { type: "pattern", key: "creating", delta: 2 },
+          { type: "development", key: "persistence", delta: 2 },
+        ],
+        memory: { importance: 3, title: "Drew your home again", copy: "Years after your first crooked picture, you drew the same home again and saw how much you had changed." },
+      },
+      {
+        id: "laugh",
+        label: "Laugh at how bad it is",
+        result: "You are merciless toward the artistic decisions of your much younger self. Fortunately, that child is unavailable for comment.",
+        effects: [{ type: "health", key: "stress", delta: -1 }],
+      },
+    ],
+  },
+  {
+    id: "friend_home_callback",
+    category: "Friends",
+    age: [9, 12],
+    once: true,
+    weight: 3.5,
+    continuity: "A small shared history is starting to become part of the friendship.",
+    requirements: {
+      history: { eventId: "friend_invitation", choiceId: "go", minMonthsAgo: 6 },
+      relationship: { target: "friend", key: "closeness", min: 58 },
+    },
+    title: "An inside joke comes back",
+    body: "At lunch, {friend.name} mentions something that happened the afternoon you went to their house. Neither of you explains it properly. Both of you start laughing anyway.",
+    prompt: "What do you do?",
+    choices: [
+      {
+        id: "keep_going",
+        label: "Keep the joke going",
+        result: "By the end of lunch it has become even less understandable to everyone else, which somehow improves it.",
+        effects: [
+          { type: "relationship", target: "friend", key: "closeness", delta: 4 },
+          { type: "relationship", target: "friend", key: "familiarity", delta: 3 },
+          { type: "pattern", key: "connecting", delta: 1 },
+        ],
+      },
+      {
+        id: "remember_quietly",
+        label: "Smile and remember the afternoon",
+        result: "For a moment the friendship feels larger than whatever is happening today. It has a before now.",
+        effects: [
+          { type: "relationship", target: "friend", key: "trust", delta: 3 },
+          { type: "development", key: "attachment", delta: 1 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "presentation_second_chance_steady",
+    category: "School",
+    age: [11, 12],
+    once: true,
+    weight: 4,
+    continuity: "A situation that once frightened you is happening again.",
+    requirements: {
+      history: { eventId: "class_presentation", choiceId: "steady", minMonthsAgo: 6 },
+    },
+    title: "Back at the front of the room",
+    body: "Another presentation. You still feel the familiar tightness while waiting for your name, but this time you also remember that you got through it before.",
+    prompt: "How do you begin?",
+    choices: [
+      {
+        id: "trust_yourself",
+        label: "Start before you can overthink it",
+        result: "The first sentence comes out clearly. The nerves never disappear completely, but they no longer feel like proof that you cannot do this.",
+        effects: [
+          { type: "development", key: "confidence", delta: 5 },
+          { type: "development", key: "emotionalRegulation", delta: 3 },
+          { type: "education", key: "language", delta: 3 },
+        ],
+        memory: { importance: 3, title: "Realized presentations had become easier", copy: "You stood in front of class again and noticed that an old fear no longer had quite the same power." },
+      },
+      {
+        id: "same_method",
+        label: "Use the same slow approach as last time",
+        result: "You breathe, look at your notes, and begin carefully. Repetition is less glamorous than courage and often more reliable.",
+        effects: [
+          { type: "development", key: "persistence", delta: 3 },
+          { type: "personality", key: "structure", delta: 2 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "presentation_second_chance_fast",
+    category: "School",
+    age: [11, 12],
+    once: true,
+    weight: 4,
+    continuity: "The same kind of moment has come around again.",
+    requirements: {
+      history: { eventId: "class_presentation", choiceId: "fast", minMonthsAgo: 6 },
+    },
+    title: "Another presentation",
+    body: "Your name is on the presentation list again. You remember rushing through the last one just to make the feeling stop.",
+    prompt: "What do you do this time?",
+    choices: [
+      {
+        id: "try_slower",
+        label: "Try to slow down this time",
+        requirements: { development: { key: "confidence", min: 45 } },
+        result: "You force yourself to leave a little space between sentences. The room does not swallow you. Apparently time can continue moving even when you speak slowly.",
+        effects: [
+          { type: "development", key: "confidence", delta: 4 },
+          { type: "development", key: "emotionalRegulation", delta: 4 },
+          { type: "education", key: "language", delta: 3 },
+        ],
+      },
+      {
+        id: "rush_again",
+        label: "Get it over with quickly",
+        result: "You finish fast again. Relief arrives immediately, along with the faint suspicion that you are teaching yourself to fear the front of the room.",
+        effects: [
+          { type: "personality", key: "sensitivity", delta: 1 },
+          { type: "development", key: "confidence", delta: -1 },
+        ],
+      },
+      {
+        id: "ask_teacher",
+        label: "Ask {teacher.name} if you can use note cards",
+        result: "The note cards make the task feel more contained. You still dislike it. Disliking something and being unable to do it are not the same thing.",
+        effects: [
+          { type: "personality", key: "structure", delta: 2 },
+          { type: "development", key: "confidence", delta: 2 },
+          { type: "development", key: "persistence", delta: 2 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "friend_world_growing",
+    category: "Friends",
+    age: [8, 12],
+    once: true,
+    weight: 2.8,
+    continuity: "Someone you care about has been changing while you were busy living too.",
+    requirements: {
+      npc: { target: "friend", key: "socialWorld", min: 66 },
+      relationship: { target: "friend", key: "closeness", min: 48 },
+    },
+    title: "{friend.name} has other people now",
+    body: "Lately, {friend.name} has been spending more time with another group from class. Nothing dramatic happened. Their world simply got a little larger without asking your permission.",
+    prompt: "How do you respond?",
+    choices: [
+      {
+        id: "join_sometimes",
+        label: "Join them sometimes",
+        requirements: { development: { key: "socialComfort", min: 48 } },
+        result: "The group is not instantly yours, but it is not hostile either. Your friendship stretches enough to make room for other people.",
+        effects: [
+          { type: "relationship", target: "friend", key: "trust", delta: 4 },
+          { type: "personality", key: "social", delta: 2 },
+          { type: "development", key: "socialComfort", delta: 3 },
+        ],
+      },
+      {
+        id: "ask_friend",
+        label: "Ask {friend.name} if anything changed",
+        requirements: { development: { key: "confidence", min: 46 } },
+        result: "They look surprised by the question. Nothing changed, they say. They just like those people too. The answer is reassuring and irritating in equal measure.",
+        effects: [
+          { type: "relationship", target: "friend", key: "trust", delta: 5 },
+          { type: "development", key: "confidence", delta: 2 },
+          { type: "health", key: "stress", delta: -2 },
+        ],
+      },
+      {
+        id: "pull_back",
+        label: "Give them more space",
+        result: "You stop looking for them quite as often. The friendship does not disappear, but its shape changes around the distance you create.",
+        effects: [
+          { type: "relationship", target: "friend", key: "closeness", delta: -4 },
+          { type: "personality", key: "independence", delta: 2 },
+          { type: "development", key: "autonomy", delta: 2 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "friend_quiet_lately",
+    category: "Friends",
+    age: [8, 12],
+    weight: 2.6,
+    requirements: {
+      npc: { target: "friend", key: "outsideStress", min: 62 },
+      relationship: { target: "friend", key: "closeness", min: 52 },
+    },
+    title: "{friend.name} is quieter than usual",
+    body: "For several days, {friend.name} has laughed less and gone home quickly after class. They have not told you anything is wrong.",
+    prompt: "What do you do?",
+    choices: [
+      {
+        id: "check_in",
+        label: "Ask if they're okay",
+        requirements: { development: { key: "confidence", min: 42 } },
+        result: "They do not tell you everything. They do tell you enough to make it clear that the quietness was not about you.",
+        effects: [
+          { type: "relationship", target: "friend", key: "trust", delta: 6 },
+          { type: "pattern", key: "connecting", delta: 2 },
+          { type: "npc", target: "friend", key: "outsideStress", delta: -4 },
+        ],
+        memory: { importance: 2, title: "Checked in on {friend.name}", copy: "You noticed {friend.name} was quieter than usual and asked if they were okay." },
+      },
+      {
+        id: "stay_near",
+        label: "Just stay near them",
+        result: "You do not ask questions. You sit beside them at lunch and talk about ordinary things. They seem grateful for the lack of interrogation.",
+        effects: [
+          { type: "relationship", target: "friend", key: "closeness", delta: 4 },
+          { type: "relationship", target: "friend", key: "trust", delta: 3 },
+        ],
+      },
+      {
+        id: "assume_space",
+        label: "Leave them alone",
+        result: "You assume they want space and give it to them. Perhaps they do. Perhaps they were hoping someone would notice. You cannot know yet.",
+        effects: [
+          { type: "relationship", target: "friend", key: "closeness", delta: -1 },
+          { type: "development", key: "autonomy", delta: 1 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "guardian_busy_stretch",
+    category: "Family",
+    age: [6, 12],
+    weight: 2.8,
+    requirements: {
+      npc: { target: "guardian", key: "outsideStress", min: 64 },
+    },
+    title: "The adults are tired too",
+    body: "{guardian.name} has been coming home distracted lately. They still ask about your day, but sometimes you can tell the question arrives before their attention does.",
+    prompt: "What do you do tonight?",
+    choices: [
+      {
+        id: "tell_anyway",
+        label: "Tell them about your day anyway",
+        requirements: { development: { key: "attachment", min: 48 } },
+        result: "They miss part of the story and ask you to repeat it. This time they put down what they were doing and listen properly.",
+        effects: [
+          { type: "relationship", target: "guardian", key: "trust", delta: 3 },
+          { type: "relationship", target: "guardian", key: "closeness", delta: 2 },
+        ],
+      },
+      {
+        id: "help_small",
+        label: "Do one small thing to help",
+        result: "You clear something away without being asked. It does not solve whatever is exhausting them. It does make the evening slightly easier.",
+        effects: [
+          { type: "relationship", target: "guardian", key: "affection", delta: 3 },
+          { type: "personality", key: "independence", delta: 2 },
+          { type: "pattern", key: "connecting", delta: 1 },
+        ],
+      },
+      {
+        id: "keep_to_self",
+        label: "Keep to yourself tonight",
+        result: "You decide they already have enough to deal with. Your evening becomes quieter and more private than usual.",
+        effects: [
+          { type: "personality", key: "independence", delta: 2 },
+          { type: "development", key: "autonomy", delta: 1 },
+          { type: "relationship", target: "guardian", key: "closeness", delta: -1 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "club_signups",
+    category: "School",
+    age: [7, 11],
+    once: true,
+    weight: 2.3,
+    title: "Club sign-ups",
+    body: "Several school clubs have tables set up after class. There is an art club, a science club, and a small group for students who want to help with school events.",
+    prompt: "What feels possible today?",
+    choices: [
+      {
+        id: "walk_up_alone",
+        label: "Walk up and introduce yourself",
+        requirements: { development: { key: "confidence", min: 58 } },
+        result: "You choose a table and say your name before you have time to invent a reason not to. The conversation is ordinary. That is almost disappointing after all the buildup.",
+        effects: [
+          { type: "development", key: "confidence", delta: 3 },
+          { type: "personality", key: "social", delta: 2 },
+          { type: "pattern", key: "exploring", delta: 2 },
+        ],
+      },
+      {
+        id: "with_friend",
+        label: "Ask {friend.name} to look with you",
+        result: "It is easier with another person beside you. You both wander between the tables, rejecting some clubs for reasons that become increasingly unserious.",
+        effects: [
+          { type: "relationship", target: "friend", key: "closeness", delta: 3 },
+          { type: "development", key: "socialComfort", delta: 2 },
+        ],
+      },
+      {
+        id: "take_form",
+        label: "Take a form home first",
+        result: "You want time to think without somebody waiting for your answer. The form spends the evening on the table while you consider it properly.",
+        effects: [
+          { type: "personality", key: "structure", delta: 2 },
+          { type: "development", key: "autonomy", delta: 1 },
+        ],
+      },
+      {
+        id: "walk_past",
+        label: "Walk past for now",
+        result: "Nothing forces you to choose today. The tables become smaller behind you as you head home.",
+        effects: [{ type: "health", key: "stress", delta: -1 }],
+      },
+    ],
+  },
+  {
+    id: "sibling_own_world",
+    category: "Family",
+    age: [7, 12],
+    once: true,
+    weight: 2,
+    requirements: { hasSibling: true },
+    title: "{sibling.name} has a thing now",
+    body: "For reasons known mostly to them, {sibling.name} has become intensely interested in something you barely care about. They talk about it at dinner anyway.",
+    prompt: "How do you respond?",
+    choices: [
+      {
+        id: "listen",
+        label: "Let them explain it to you",
+        result: "The explanation is longer than necessary and includes details you immediately forget. {sibling.name} seems pleased that you listened.",
+        effects: [
+          { type: "relationship", target: "sibling", key: "closeness", delta: 4 },
+          { type: "relationship", target: "sibling", key: "trust", delta: 3 },
+          { type: "pattern", key: "connecting", delta: 1 },
+        ],
+      },
+      {
+        id: "tease",
+        label: "Tease them about it",
+        result: "They tell you to stop. You do eventually. The subject is apparently much less funny from inside their head.",
+        effects: [
+          { type: "relationship", target: "sibling", key: "conflict", delta: 4 },
+          { type: "relationship", target: "sibling", key: "trust", delta: -2 },
+        ],
+      },
+      {
+        id: "leave_it",
+        label: "Let it be their thing",
+        result: "You do not become interested, but you stop treating that as a problem. Siblings are permitted private civilizations, apparently.",
+        effects: [
+          { type: "relationship", target: "sibling", key: "conflict", delta: -1 },
+          { type: "development", key: "autonomy", delta: 1 },
+        ],
+      },
+    ],
+  },
+];
