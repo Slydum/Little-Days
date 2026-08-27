@@ -22,12 +22,17 @@ jobs:
           node --check game/realism.js
           node --check game/contextual-events.js
           node --check game/household-membership.js
+          node --check game/childhood-v2.js
+          node --check game/childhood-v2-resolve.js
           node --check tests/realism-smoke.mjs
           node --check tests/contextual-events-smoke.mjs
           node --check tests/household-membership-smoke.mjs
+          node --check tests/childhood-v2-smoke.mjs
       - name: Smoke test living household
         run: node tests/realism-smoke.mjs
       - name: Smoke test contextual life loop
         run: node tests/contextual-events-smoke.mjs
       - name: Smoke test household membership
         run: node tests/household-membership-smoke.mjs
+      - name: Smoke test childhood social world
+        run: node tests/childhood-v2-smoke.mjs
