@@ -29,6 +29,7 @@ jobs:
           node --check game/realism-v2.js
           node --check game/contextual-events.js
           node --check game/contextual-events-v2.js
+          node --check game/contextual-events-v3.js
           node --check game/household-membership.js
           node --check game/childhood-v2.js
           node --check game/childhood-v3.js
@@ -70,6 +71,7 @@ jobs:
           node --check tests/psychology-phase3-smoke.mjs
           node --check tests/psychology-events-smoke.mjs
           node --check tests/early-childhood-variety-smoke.mjs
+          node --check tests/early-childhood-progression-diversity-smoke.mjs
           node --check tests/friendship-continuity-smoke.mjs
           node --check tests/relationship-continuity-v2-smoke.mjs
           node --check tests/school-coherence-smoke.mjs
@@ -96,6 +98,8 @@ jobs:
         run: node tests/psychology-events-smoke.mjs
       - name: Smoke test early-childhood variety
         run: node tests/early-childhood-variety-smoke.mjs
+      - name: Smoke test infant story progression diversity
+        run: node tests/early-childhood-progression-diversity-smoke.mjs
       - name: Smoke test friendship continuity
         run: node tests/friendship-continuity-smoke.mjs
       - name: Smoke test relationship continuity v2
