@@ -36,16 +36,19 @@ jobs:
           node --check game/childhood-v5.js
           node --check game/childhood-v6.js
           node --check game/childhood-v7.js
+          node --check game/childhood-v8.js
           node --check game/childhood-v2-resolve.js
           node --check game/childhood-v3-resolve.js
           node --check game/childhood-v4-resolve.js
           node --check game/childhood-v5-resolve.js
           node --check game/childhood-v6-resolve.js
+          node --check game/childhood-v7-resolve.js
           node --check game/relationship-continuity.js
           node --check game/school-coherence.js
           node --check game/childhood-depth.js
           node --check game/childhood-depth-v2.js
           node --check game/childhood-depth-loader.js
+          node --check game/quiet-boot.js
           node --check game/family-enhancer.js
           node --check game/life-enhancer.js
           node --check game/psychology.js
@@ -72,6 +75,7 @@ jobs:
           node --check tests/school-coherence-smoke.mjs
           node --check tests/childhood-summary-smoke.mjs
           node --check tests/childhood-depth-pacing-smoke.mjs
+          node --check tests/friendship-discovery-smoke.mjs
       - name: Smoke test living household
         run: node tests/realism-smoke.mjs
       - name: Smoke test illness and school coherence
@@ -102,5 +106,7 @@ jobs:
         run: node tests/childhood-summary-smoke.mjs
       - name: Smoke test childhood depth and pacing v2
         run: node tests/childhood-depth-pacing-smoke.mjs
+      - name: Smoke test friendship discovery
+        run: node tests/friendship-discovery-smoke.mjs
       - name: Simulate 100 school-age lives
         run: node tests/school-social-100-life.mjs
