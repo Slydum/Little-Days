@@ -1,5 +1,5 @@
 import * as core from "./realism-v2.js?v=1";
-import { advanceHouseholdEconomy, ensureHouseholdEconomy } from "./household-economy.js?v=1";
+import { advanceHouseholdEconomy, ensureHouseholdEconomy } from "./household-economy-v2.js?v=1";
 
 export * from "./realism-v2.js?v=1";
 
