@@ -1,6 +1,6 @@
 import { familyTreeContent } from "./family-ui.js";
 import { schoolWorldSnapshot, socialSnapshot } from "./childhood-v2.js?v=23";
-import { refreshLifeEnhancer } from "./life-enhancer.js?v=24";
+import { refreshLifeEnhancer } from "./life-enhancer.js?v=25";
 
 const STORAGE_KEY = "little-days-save-v2";
 let renderToken = 0;
