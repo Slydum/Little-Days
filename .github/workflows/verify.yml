@@ -17,12 +17,14 @@ jobs:
         run: |
           node --check app.js
           node --check game/engine.js
+          node --check game/engine-v25.js
           node --check game/content.js
           node --check game/callbacks.js
           node --check game/realism.js
           node --check game/contextual-events.js
           node --check game/household-membership.js
           node --check game/childhood-v2.js
+          node --check game/childhood-v3.js
           node --check game/childhood-v2-resolve.js
           node --check game/family-enhancer.js
           node --check game/life-enhancer.js
@@ -38,6 +40,8 @@ jobs:
           node --check tests/psychology-phase1-smoke.mjs
           node --check tests/psychology-phase2-smoke.mjs
           node --check tests/psychology-phase3-smoke.mjs
+          node --check tests/early-childhood-variety-smoke.mjs
+          node --check tests/friendship-continuity-smoke.mjs
       - name: Smoke test living household
         run: node tests/realism-smoke.mjs
       - name: Smoke test contextual life loop
@@ -52,5 +56,9 @@ jobs:
         run: node tests/psychology-phase2-smoke.mjs
       - name: Smoke test psychological development phase 3
         run: node tests/psychology-phase3-smoke.mjs
+      - name: Smoke test early-childhood variety
+        run: node tests/early-childhood-variety-smoke.mjs
+      - name: Smoke test friendship continuity
+        run: node tests/friendship-continuity-smoke.mjs
       - name: Simulate 100 school-age lives
         run: node tests/school-social-100-life.mjs
