@@ -1,0 +1,11 @@
+import * as core from "./adolescence-events.js?v=1";
+import { addTeenPhone, ensureAdolescenceState, markAdolescenceSeen } from "./adolescence-core-v2.js?v=1";
+
+export * from "./adolescence-events.js?v=1";
+
+const peso=v=>`₱${Math.max(0,Math.round(Number(v)||0)).toLocaleString("en-PH")}`;
+function spendSavings(state,amount){let n=Math.max(0,Math.round(amount||0));state.money||={cash:0,savings:0};const cash=Math.min(state.money.cash||0,n);state.money.cash=Math.max(0,(state.money.cash||0)-cash);n-=cash;const saved=Math.min(state.money.savings||0,n);state.money.savings=Math.max(0,(state.money.savings||0)-saved);return cash+saved;}
+function phoneGoalEvent(state,item){const target=state.money?.savingsGoal?.target||3500;return{id:"teen_phone_goal_ready",category:"Money",title:"You finally have enough saved for a phone",body:`The money you have been setting aside has reached ${peso(target)}. You can afford a basic used smartphone without asking the household to cover the whole purchase.`,prompt:"What do you do?",adolescenceKey:item.key,adolescenceType:item.type,contextKind:"adolescence-v1",choices:[{id:"buy",label:"Buy the phone",result:"You use the money you saved and finally get your own basic smartphone. It feels better knowing the purchase came from months of choices rather than appearing from nowhere.",effects:[{type:"development",key:"autonomy",delta:2}]},{id:"keep",label:"Keep the savings instead",result:"You decide the money is more useful as savings than as a phone right now. Having enough to buy something is not the same as having to buy it.",effects:[{type:"personality",key:"structure",delta:1},{type:"development",key:"persistence",delta:1}]}]};}
+
+export function adolescenceEventForState(state){const a=ensureAdolescenceState(state);const item=a?.queue?.[0];if(item?.type==="phone_goal_ready")return phoneGoalEvent(state,item);return core.adolescenceEventForState(state);}
+export function commitAdolescenceEvent(state,event,choice){if(event?.adolescenceType!=="phone_goal_ready")return core.commitAdolescenceEvent(state,event,choice);const target=state.money?.savingsGoal?.target||3500;if(choice?.id==="buy"){spendSavings(state,target);addTeenPhone(state,"used",target,62);}if(state.money?.savingsGoal)delete state.money.savingsGoal;markAdolescenceSeen(state,event);return state;}
