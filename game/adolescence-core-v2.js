@@ -1,0 +1,12 @@
+import * as core from "./adolescence-core.js?v=1";
+
+export * from "./adolescence-core.js?v=1";
+
+const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
+const cash=v=>Math.max(0,Math.round(Number(v)||0));
+
+function advanceAcademics(state,a,elapsed){const subjects=state.education?.subjects||{},school=state.childhood?.school||{},mode=a.education?.mode,effort=school.effort??55,stress=state.health?.stress??25,curiosity=state.character?.personality?.curiosity??50,structure=state.character?.personality?.structure??50;for(const key of Object.keys(subjects)){let drift=(effort-50)*.012*elapsed+(curiosity-50)*.004*elapsed-Math.max(0,stress-55)*.008*elapsed;if(mode==="private")drift+=.08*elapsed;if(mode==="homeschool")drift+=(structure-50)*.005*elapsed;if(mode==="out-of-school")drift=-.08*elapsed+(curiosity-50)*.005*elapsed;if(key==="art")drift+=((state.interests?.drawing||30)-40)*.003*elapsed;if(key==="physicalEducation")drift+=((state.health?.energy||60)-55)*.003*elapsed;subjects[key]=clamp(Math.round((+subjects[key]||50)+drift));}const vals=Object.values(subjects).map(Number).filter(Number.isFinite);if(vals.length)school.overallPerformance=clamp(Math.round(vals.reduce((n,v)=>n+v,0)/vals.length));}
+function advancePaidWork(state,a,elapsed){const work=a.responsibility?.paidWork;if(!work||!elapsed)return;const earned=cash((work.monthlyIncome||0)*elapsed);state.money||={cash:0,savings:0};state.money.cash=cash((state.money.cash||0)+earned*.35);state.money.savings=cash((state.money.savings||0)+earned*.65);work.totalEarned=cash((work.totalEarned||0)+earned);work.lastPaidAtMonths=state.character?.ageMonths||0;if(work.kind==="part-time"&&state.health){state.health.energy=clamp((state.health.energy??60)-Math.max(1,Math.round(elapsed*.35)));state.health.stress=clamp((state.health.stress??25)+Math.max(0,Math.round(elapsed*.2)));}}
+function queuePhoneGoal(state,a){const goal=state.money?.savingsGoal,total=(state.money?.cash||0)+(state.money?.savings||0);if(a.phone?.owned||goal?.kind!=="phone"||total<(goal.target||3500))return;core.queueAdolescenceEvent(state,{key:"teen-phone-goal-ready",type:"phone_goal_ready",priority:78});}
+
+export function advanceAdolescence(state,elapsed=0,beforeAgeMonths=null){const next=core.advanceAdolescence(state,elapsed,beforeAgeMonths);const a=core.ensureAdolescenceState(next);if(!a||!elapsed)return next;advanceAcademics(next,a,elapsed);advancePaidWork(next,a,elapsed);queuePhoneGoal(next,a);return next;}
