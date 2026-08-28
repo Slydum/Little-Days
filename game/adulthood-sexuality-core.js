@@ -22,11 +22,11 @@ function attractionProfile(state,kind="sexual"){
   const r=roll(state,`${kind}-orientation-base`);
   const same=sex==="Female"?"women":"men";
   const other=sex==="Female"?"men":"women";
-  let profile={men:20,women:20,nonbinary:18,aceSpectrum:false};
-  if(r<.09) profile={men:18,women:18,nonbinary:16,aceSpectrum:true};
-  else if(r<.18){profile[same]=84;profile[other]=18;profile.nonbinary=38;}
+  let profile={men:8,women:8,nonbinary:8,aceSpectrum:false};
+  if(r<.09) profile={men:12,women:12,nonbinary:10,aceSpectrum:true};
+  else if(r<.18){profile[same]=88;profile[other]=6;profile.nonbinary=22;}
   else if(r<.35){profile.men=72;profile.women=72;profile.nonbinary=68;}
-  else{profile[other]=84;profile[same]=18;profile.nonbinary=32;}
+  else{profile[other]=88;profile[same]=6;profile.nonbinary=22;}
   const teenId=state.adolescence?.romance?.current?.personId;
   const teenPartner=teenId?(state.people||[]).find(p=>p.id===teenId):null;
   if(teenPartner?.sex==="Male")profile.men=clamp(profile.men+10);
@@ -59,7 +59,7 @@ function orientationCopy(profile){
 }
 function initialPreferenceSeeds(state){return Object.fromEntries(PREFERENCES.map((p,i)=>[p.id,Math.round(20+roll(state,`adult-pref:${p.id}:${i}`)*70)]));}
 function initialSexuality(state){
-  const sexual=attractionProfile(state,"sexual"),romantic=attractionProfile(state,"romantic");
+  const sexual=attractionProfile(state,"sexual"),romantic=roll(state,"romantic-orientation-variation")<.82?{...sexual}:attractionProfile(state,"romantic");
   const d=state.character?.development||{},p=state.character?.personality||{},psych=state.psychology?.dimensions||{};
   return{
     version:1,
