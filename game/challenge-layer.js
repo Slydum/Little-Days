@@ -1,5 +1,9 @@
 const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, value));
 
+function ageMonths(state) {
+  return state.character?.ageMonths || 0;
+}
+
 function nextRandom(state) {
   state.challenge.rngState = (state.challenge.rngState * 1664525 + 1013904223) >>> 0;
   return state.challenge.rngState / 4294967296;
@@ -13,21 +17,22 @@ function pick(state, items) {
   return items[Math.floor(nextRandom(state) * items.length)];
 }
 
-function ageMonths(state) {
-  return state.character?.ageMonths || 0;
-}
-
 function school(state) {
   return state.childhood?.school || null;
 }
 
 function visibleFriends(state) {
   const age = ageMonths(state);
-  return (state.people || []).filter((person) => person.role === "friend" && !person.deceased && (person.introducedAtMonths || 0) <= age && person.school?.friendshipStatus !== "former");
+  return (state.people || []).filter((person) =>
+    person.role === "friend"
+    && !person.deceased
+    && (person.introducedAtMonths || 0) <= age
+    && person.school?.friendshipStatus !== "former");
 }
 
 function closestFriend(state) {
-  return [...visibleFriends(state)].sort((a, b) => ((b.closeness || 0) + (b.trust || 0)) - ((a.closeness || 0) + (a.trust || 0)))[0] || null;
+  return [...visibleFriends(state)]
+    .sort((a, b) => ((b.closeness || 0) + (b.trust || 0)) - ((a.closeness || 0) + (a.trust || 0)))[0] || null;
 }
 
 function caregiver(state) {
@@ -41,8 +46,7 @@ function firstName(person, fallback = "someone") {
 }
 
 function queueChallenge(state, item) {
-  ensureChallengeState(state);
-  if (!item?.key) return;
+  if (!state.challenge || !item?.key) return;
   if (state.challenge.seen.includes(item.key) || state.challenge.queue.some((queued) => queued.key === item.key)) return;
   state.challenge.queue.push({ priority: 50, createdAtMonths: ageMonths(state), ...item });
   state.challenge.queue.sort((a, b) => (b.priority || 0) - (a.priority || 0) || (a.createdAtMonths || 0) - (b.createdAtMonths || 0));
@@ -58,8 +62,7 @@ function academicScore(state) {
 
 function friendshipScore(state) {
   const friend = closestFriend(state);
-  if (!friend) return 20;
-  return clamp(Math.round(((friend.closeness || 0) + (friend.trust || 0)) / 2));
+  return friend ? clamp(Math.round(((friend.closeness || 0) + (friend.trust || 0)) / 2)) : 20;
 }
 
 function independenceScore(state) {
@@ -79,8 +82,9 @@ function nextBirthdayMonths(state) {
 }
 
 function createGoals(state) {
-  if (ageMonths(state) < 60 || ageMonths(state) >= 156) return [];
-  const years = Math.floor(ageMonths(state) / 12);
+  const months = ageMonths(state);
+  if (months < 60 || months >= 156) return [];
+  const years = Math.floor(months / 12);
   const deadlineMonths = nextBirthdayMonths(state);
   const goals = [
     {
@@ -121,11 +125,19 @@ function recordGoalResult(state, goal, progress, success) {
     ageMonths: ageMonths(state),
   });
   state.challenge.goalHistory = state.challenge.goalHistory.slice(-18);
-  state.worldEvents ||= [];
+
   const text = success
     ? `You reached a personal goal: ${goal.label.toLowerCase()}.`
-    : `You missed a personal goal: ${goal.label.toLowerCase()}. Life kept moving anyway, but the miss had consequences.`;
-  state.worldEvents.push({ category: goal.domain === "school" ? "School" : "Self", text, note: text, ageMonths: ageMonths(state), date: { ...state.date }, source: "challenge-goal" });
+    : `You missed a personal goal: ${goal.label.toLowerCase()}. Life kept moving, but the miss changed what came next.`;
+  state.worldEvents ||= [];
+  state.worldEvents.push({
+    category: goal.domain === "school" ? "School" : "Self",
+    text,
+    note: text,
+    ageMonths: ageMonths(state),
+    date: { ...state.date },
+    source: "challenge-goal",
+  });
   state.worldEvents = state.worldEvents.slice(-100);
 
   if (success) {
@@ -171,22 +183,39 @@ function queueDueArcFollowups(state) {
   for (const arc of state.challenge.arcs || []) {
     if (arc.status !== "active" || arc.followupQueued || ageMonths(state) < (arc.dueAtMonths || 99999)) continue;
     if (arc.type === "friend-uncertainty") {
-      queueChallenge(state, { key: `${arc.id}:reveal`, type: "friend_reveal", priority: 78, arcId: arc.id, personId: arc.personId, data: { reason: arc.reason, openingChoice: arc.openingChoice } });
+      queueChallenge(state, {
+        key: `${arc.id}:reveal`,
+        type: "friend_reveal",
+        priority: 78,
+        arcId: arc.id,
+        personId: arc.personId,
+        data: { reason: arc.reason, openingChoice: arc.openingChoice },
+      });
       arc.followupQueued = true;
     }
     if (arc.type === "family-squeeze") {
-      queueChallenge(state, { key: `${arc.id}:followup`, type: "family_squeeze_followup", priority: 80, arcId: arc.id, data: { openingChoice: arc.openingChoice } });
+      queueChallenge(state, {
+        key: `${arc.id}:followup`,
+        type: "family_squeeze_followup",
+        priority: 80,
+        arcId: arc.id,
+        data: { openingChoice: arc.openingChoice },
+      });
       arc.followupQueued = true;
     }
   }
 }
 
 function schedulerPool(state) {
-  const pool = ["competing_demands", "project_pressure", "friend_uncertainty"];
-  const finance = state.household?.financeBand;
-  if (finance !== "Comfortable") pool.push("school_cost", "school_cost");
-  if (!state.challenge.seen.some((key) => key.startsWith("family-squeeze:")) && ageMonths(state) >= 84) pool.push("family_squeeze_start");
-  if (!visibleFriends(state).length) return pool.filter((type) => type !== "friend_uncertainty");
+  const months = ageMonths(state);
+  const hasFriend = visibleFriends(state).length > 0;
+  const pool = [];
+
+  if (hasFriend) pool.push("competing_demands", "friend_uncertainty");
+  if (months >= 84) pool.push("project_pressure");
+  if (state.household?.financeBand !== "Comfortable") pool.push("school_cost", "school_cost");
+  if (months >= 84 && !state.challenge.seen.some((key) => key.startsWith("family_squeeze_start:"))) pool.push("family_squeeze_start");
+  if (!pool.length) pool.push("school_cost");
   return pool;
 }
 
@@ -273,8 +302,7 @@ function decorateChoices(state, event, person = null) {
       const chance = riskChance(state, choice, person);
       const cost = Math.max(0, choice.cost || 0);
       const disabled = cost > available || Boolean(choice.requiresSavings && (state.household?.savings || 0) < choice.requiresSavings);
-      const parts = [];
-      parts.push(cost ? `${cost} capacity` : "Preserves capacity");
+      const parts = [cost ? `${cost} capacity` : "Preserves capacity"];
       if (chance != null) parts.push(riskWord(chance));
       if (choice.tradeoff) parts.push(choice.tradeoff);
       if (disabled) parts.push(cost > available ? `Need ${cost} capacity` : "Household cannot afford this");
@@ -296,15 +324,37 @@ function competingDemandsEvent(state, item) {
     challengeType: item.type,
     challengePersonId: friend?.id || null,
     choices: [
-      { id: "study", label: "Go home and study", cost: 2, chance: 0.78, risk: "academic", tradeoff: `${name} may feel abandoned`, result: "You protect your preparation, but the friendship absorbs the cost of not being there.", successResult: "The studying pays off and you feel prepared when the assessment arrives.", failureResult: "You studied, but the assessment still goes badly enough to sting.", effects: [{ type: "relationship", targetId: friend?.id, key: "closeness", delta: -4 }], successEffects: [{ type: "school", key: "overallPerformance", delta: 4 }], failureEffects: [{ type: "health", key: "stress", delta: 3 }] },
-      { id: "friend", label: `Stay with ${name}`, cost: 2, chance: 0.72, risk: "social", tradeoff: "School preparation suffers", result: "You choose the person in front of you and accept that tomorrow may be harder.", successResult: `${name} remembers that you showed up when they needed somebody.`, failureResult: `You stay, but ${name} is too upset to really connect and you still lose the study time.`, effects: [{ type: "school", key: "overallPerformance", delta: -3 }], successEffects: [{ type: "relationship", targetId: friend?.id, key: "trust", delta: 7 }], failureEffects: [{ type: "health", key: "stress", delta: 2 }] },
-      { id: "split", label: "Try to do both", cost: 3, chance: 0.52, risk: "mixed", tradeoff: "Failure can hit both sides", result: "You divide the afternoon and hope competence can be manufactured from scheduling. Humanity keeps trying this despite the evidence.", successResult: "You manage enough study and enough time with your friend that neither part collapses.", failureResult: "You end the day rushed, underprepared, and not fully present with your friend either.", successEffects: [{ type: "school", key: "overallPerformance", delta: 2 }, { type: "relationship", targetId: friend?.id, key: "trust", delta: 3 }], failureEffects: [{ type: "school", key: "overallPerformance", delta: -2 }, { type: "relationship", targetId: friend?.id, key: "closeness", delta: -2 }, { type: "health", key: "stress", delta: 4 }] },
+      {
+        id: "study", label: "Go home and study", cost: 2, chance: 0.78, risk: "academic", tradeoff: `${name} may feel abandoned`,
+        result: "You protect your preparation, but the friendship absorbs the cost of not being there.",
+        successResult: "The studying pays off and you feel prepared when the assessment arrives.",
+        failureResult: "You studied, but the assessment still goes badly enough to sting.",
+        effects: [{ type: "relationship", targetId: friend?.id, key: "closeness", delta: -4 }],
+        successEffects: [{ type: "school", key: "overallPerformance", delta: 4 }],
+        failureEffects: [{ type: "health", key: "stress", delta: 3 }],
+      },
+      {
+        id: "friend", label: `Stay with ${name}`, cost: 2, chance: 0.72, risk: "social", tradeoff: "School preparation suffers",
+        result: "You choose the person in front of you and accept that tomorrow may be harder.",
+        successResult: `${name} remembers that you showed up when they needed somebody.`,
+        failureResult: `You stay, but ${name} is too upset to really connect and you still lose the study time.`,
+        effects: [{ type: "school", key: "overallPerformance", delta: -3 }],
+        successEffects: [{ type: "relationship", targetId: friend?.id, key: "trust", delta: 7 }],
+        failureEffects: [{ type: "health", key: "stress", delta: 2 }],
+      },
+      {
+        id: "split", label: "Try to do both", cost: 3, chance: 0.52, risk: "mixed", tradeoff: "Failure can hit both sides",
+        result: "You divide the afternoon and hope competence can be manufactured from scheduling. Humanity keeps trying this despite the evidence.",
+        successResult: "You manage enough study and enough time with your friend that neither part collapses.",
+        failureResult: "You end the day rushed, underprepared, and not fully present with your friend either.",
+        successEffects: [{ type: "school", key: "overallPerformance", delta: 2 }, { type: "relationship", targetId: friend?.id, key: "trust", delta: 3 }],
+        failureEffects: [{ type: "school", key: "overallPerformance", delta: -2 }, { type: "relationship", targetId: friend?.id, key: "closeness", delta: -2 }, { type: "health", key: "stress", delta: 4 }],
+      },
     ],
   }, friend);
 }
 
 function projectPressureEvent(state, item) {
-  const currentSchool = school(state);
   return decorateChoices(state, {
     id: `challenge_project_${item.key}`,
     category: "School",
@@ -314,16 +364,36 @@ function projectPressureEvent(state, item) {
     challengeQueueKey: item.key,
     challengeType: item.type,
     choices: [
-      { id: "carry", label: "Do the missing work yourself", cost: 3, chance: 0.76, risk: "academic", tradeoff: "Protects grade, drains you", result: "You take on work that was never supposed to be yours.", successResult: "The project holds together, and the grade is safer because you carried it.", failureResult: "You exhaust yourself and still cannot fully rescue the project.", successEffects: [{ type: "school", key: "overallPerformance", delta: 4 }, { type: "development", key: "persistence", delta: 1 }], failureEffects: [{ type: "health", key: "energy", delta: -5 }, { type: "health", key: "stress", delta: 4 }] },
-      { id: "confront", label: "Tell them they need to finish their parts", cost: 2, chance: 0.56, risk: "mixed", tradeoff: "May create conflict", result: "You stop quietly absorbing the problem and make the responsibility visible.", successResult: "The confrontation is awkward, but enough work gets done to make the project genuinely shared again.", failureResult: "They become defensive. The work is still late, and now the group atmosphere is worse too.", successEffects: [{ type: "school", key: "overallPerformance", delta: 2 }, { type: "development", key: "confidence", delta: 2 }], failureEffects: [{ type: "health", key: "stress", delta: 3 }] },
-      { id: "own", label: "Finish only your part", cost: 1, chance: 0.62, risk: "academic", tradeoff: "Keeps your energy, risks the grade", result: "You refuse to become the unpaid emergency department for the whole group.", successResult: "Your teacher notices who actually did what, limiting the damage to you.", failureResult: "The group grade falls, and individual effort does not protect you as much as you hoped.", successEffects: [{ type: "health", key: "energy", delta: 2 }], failureEffects: [{ type: "school", key: "overallPerformance", delta: -4 }] },
+      {
+        id: "carry", label: "Do the missing work yourself", cost: 3, chance: 0.76, risk: "academic", tradeoff: "Protects grade, drains you",
+        result: "You take on work that was never supposed to be yours.",
+        successResult: "The project holds together, and the grade is safer because you carried it.",
+        failureResult: "You exhaust yourself and still cannot fully rescue the project.",
+        successEffects: [{ type: "school", key: "overallPerformance", delta: 4 }, { type: "development", key: "persistence", delta: 1 }],
+        failureEffects: [{ type: "health", key: "energy", delta: -5 }, { type: "health", key: "stress", delta: 4 }],
+      },
+      {
+        id: "confront", label: "Tell them they need to finish their parts", cost: 2, chance: 0.56, risk: "mixed", tradeoff: "May create conflict",
+        result: "You stop quietly absorbing the problem and make the responsibility visible.",
+        successResult: "The confrontation is awkward, but enough work gets done to make the project genuinely shared again.",
+        failureResult: "They become defensive. The work is still late, and now the group atmosphere is worse too.",
+        successEffects: [{ type: "school", key: "overallPerformance", delta: 2 }, { type: "development", key: "confidence", delta: 2 }],
+        failureEffects: [{ type: "health", key: "stress", delta: 3 }],
+      },
+      {
+        id: "own", label: "Finish only your part", cost: 1, chance: 0.62, risk: "academic", tradeoff: "Keeps your energy, risks the grade",
+        result: "You refuse to become the unpaid emergency department for the whole group.",
+        successResult: "Your teacher notices who actually did what, limiting the damage to you.",
+        failureResult: "The group grade falls, and individual effort does not protect you as much as you hoped.",
+        successEffects: [{ type: "health", key: "energy", delta: 2 }],
+        failureEffects: [{ type: "school", key: "overallPerformance", delta: -4 }],
+      },
     ],
   });
 }
 
 function schoolCostEvent(state, item) {
   const amount = state.household?.financeBand === "Tight" ? 1800 : 1200;
-  const currentSchool = school(state);
   return decorateChoices(state, {
     id: `challenge_cost_${item.key}`,
     category: "Money",
@@ -333,9 +403,27 @@ function schoolCostEvent(state, item) {
     challengeQueueKey: item.key,
     challengeType: item.type,
     choices: [
-      { id: "ask", label: "Ask your family to pay", cost: 1, chance: state.household?.financeBand === "Tight" ? 0.42 : 0.68, risk: "mixed", tradeoff: "Household savings take the hit", result: "You ask instead of deciding on their behalf.", successResult: "They find a way to pay, but the expense is real and the household feels it afterward.", failureResult: "They tell you no. Wanting it does not make the money appear, which is a rather rude property of money.", successEffects: [{ type: "householdSavings", delta: -amount }, { type: "school", key: "overallPerformance", delta: 1 }], failureEffects: [{ type: "health", key: "stress", delta: 2 }] },
-      { id: "assistance", label: "Ask the school about assistance", cost: 2, chance: 0.6, risk: "mixed", tradeoff: "Costs pride, may save money", result: "You ask an adult whether there is another way to participate.", successResult: "There is a subsidy or alternative arrangement, and you get to join without the full fee.", failureResult: "There is no assistance available this time. At least you know instead of quietly assuming.", successEffects: [{ type: "development", key: "confidence", delta: 2 }, { type: "school", key: "teacherSupport", delta: 3 }], failureEffects: [{ type: "health", key: "stress", delta: 1 }] },
-      { id: "skip", label: "Do not ask. Skip it.", cost: 0, tradeoff: "Protects household money, you miss out", result: "You quietly remove yourself from the activity before anyone has to tell you no.", effects: [{ type: "development", key: "confidence", delta: -1 }, { type: "health", key: "stress", delta: 1 }] },
+      {
+        id: "ask", label: "Ask your family to pay", cost: 1, chance: state.household?.financeBand === "Tight" ? 0.42 : 0.68, risk: "mixed", tradeoff: "Household savings take the hit",
+        result: "You ask instead of deciding on their behalf.",
+        successResult: "They find a way to pay, but the expense is real and the household feels it afterward.",
+        failureResult: "They tell you no. Wanting it does not make the money appear, which is a rather rude property of money.",
+        successEffects: [{ type: "householdSavings", delta: -amount }, { type: "school", key: "overallPerformance", delta: 1 }],
+        failureEffects: [{ type: "health", key: "stress", delta: 2 }],
+      },
+      {
+        id: "assistance", label: "Ask the school about assistance", cost: 2, chance: 0.6, risk: "mixed", tradeoff: "Costs pride, may save money",
+        result: "You ask an adult whether there is another way to participate.",
+        successResult: "There is a subsidy or alternative arrangement, and you get to join without the full fee.",
+        failureResult: "There is no assistance available this time. At least you know instead of quietly assuming.",
+        successEffects: [{ type: "development", key: "confidence", delta: 2 }, { type: "school", key: "teacherSupport", delta: 3 }],
+        failureEffects: [{ type: "health", key: "stress", delta: 1 }],
+      },
+      {
+        id: "skip", label: "Do not ask. Skip it.", cost: 0, tradeoff: "Protects household money, you miss out",
+        result: "You quietly remove yourself from the activity before anyone has to tell you no.",
+        effects: [{ type: "development", key: "confidence", delta: -1 }, { type: "health", key: "stress", delta: 1 }],
+      },
     ],
   });
 }
@@ -353,9 +441,27 @@ function friendUncertaintyEvent(state, item) {
     challengeType: item.type,
     challengePersonId: friend?.id || null,
     choices: [
-      { id: "ask", label: `Ask ${name} if something is wrong`, cost: 2, chance: 0.66, risk: "social", tradeoff: "Could feel intrusive", result: "You risk an awkward conversation instead of inventing an explanation in your head.", successResult: `${name} does not tell you everything, but they are relieved you noticed.`, failureResult: `${name} says they are fine and becomes a little guarded about being questioned.`, successEffects: [{ type: "relationship", targetId: friend?.id, key: "trust", delta: 4 }], failureEffects: [{ type: "relationship", targetId: friend?.id, key: "closeness", delta: -2 }] },
-      { id: "space", label: "Give them some space", cost: 0, chance: 0.58, risk: "social", tradeoff: "May become real distance", result: "You decide not to force closeness just because uncertainty is uncomfortable.", successResult: "The space does not damage the friendship. ${name} keeps the door open.", failureResult: "Neither of you reaches out much, and temporary distance begins becoming a habit.", successEffects: [{ type: "health", key: "stress", delta: -1 }], failureEffects: [{ type: "relationship", targetId: friend?.id, key: "closeness", delta: -4 }] },
-      { id: "mirror", label: "Pull away too", cost: 0, tradeoff: "Protects pride, risks the friendship", result: "You decide not to be the person who cares more. It feels safer immediately and more complicated later.", effects: [{ type: "relationship", targetId: friend?.id, key: "closeness", delta: -5 }, { type: "health", key: "stress", delta: 2 }] },
+      {
+        id: "ask", label: `Ask ${name} if something is wrong`, cost: 2, chance: 0.66, risk: "social", tradeoff: "Could feel intrusive",
+        result: "You risk an awkward conversation instead of inventing an explanation in your head.",
+        successResult: `${name} does not tell you everything, but they are relieved you noticed.`,
+        failureResult: `${name} says they are fine and becomes a little guarded about being questioned.`,
+        successEffects: [{ type: "relationship", targetId: friend?.id, key: "trust", delta: 4 }],
+        failureEffects: [{ type: "relationship", targetId: friend?.id, key: "closeness", delta: -2 }],
+      },
+      {
+        id: "space", label: "Give them some space", cost: 0, chance: 0.58, risk: "social", tradeoff: "May become real distance",
+        result: "You decide not to force closeness just because uncertainty is uncomfortable.",
+        successResult: `The space does not damage the friendship. ${name} keeps the door open.`,
+        failureResult: "Neither of you reaches out much, and temporary distance begins becoming a habit.",
+        successEffects: [{ type: "health", key: "stress", delta: -1 }],
+        failureEffects: [{ type: "relationship", targetId: friend?.id, key: "closeness", delta: -4 }],
+      },
+      {
+        id: "mirror", label: "Pull away too", cost: 0, tradeoff: "Protects pride, risks the friendship",
+        result: "You decide not to be the person who cares more. It feels safer immediately and more complicated later.",
+        effects: [{ type: "relationship", targetId: friend?.id, key: "closeness", delta: -5 }, { type: "health", key: "stress", delta: 2 }],
+      },
     ],
   }, friend);
 }
@@ -380,8 +486,19 @@ function friendRevealEvent(state, item) {
     challengeArcId: item.arcId,
     challengePersonId: friend?.id || null,
     choices: [
-      { id: "repair", label: reason === "upset" ? "Own your part and apologize" : `Make time for ${name}`, cost: 2, chance: 0.72, risk: "social", tradeoff: "Requires vulnerability", result: "You respond to the real problem instead of the version you had imagined.", successResult: "The friendship feels less automatic than before, but more honest.", failureResult: "The conversation helps less than you hoped. Repair takes more than one decent sentence.", successEffects: [{ type: "relationship", targetId: friend?.id, key: "trust", delta: 6 }, { type: "relationship", targetId: friend?.id, key: "closeness", delta: 3 }], failureEffects: [{ type: "health", key: "stress", delta: 2 }] },
-      { id: "accept", label: "Accept that the friendship is changing", cost: 0, tradeoff: "Less closeness, less chasing", result: "You stop treating change as proof that something has gone wrong.", effects: [{ type: "development", key: "emotionalRegulation", delta: 2 }, { type: "relationship", targetId: friend?.id, key: "closeness", delta: -1 }] },
+      {
+        id: "repair", label: reason === "upset" ? "Own your part and apologize" : `Make time for ${name}`, cost: 2, chance: 0.72, risk: "social", tradeoff: "Requires vulnerability",
+        result: "You respond to the real problem instead of the version you had imagined.",
+        successResult: "The friendship feels less automatic than before, but more honest.",
+        failureResult: "The conversation helps less than you hoped. Repair takes more than one decent sentence.",
+        successEffects: [{ type: "relationship", targetId: friend?.id, key: "trust", delta: 6 }, { type: "relationship", targetId: friend?.id, key: "closeness", delta: 3 }],
+        failureEffects: [{ type: "health", key: "stress", delta: 2 }],
+      },
+      {
+        id: "accept", label: "Accept that the friendship is changing", cost: 0, tradeoff: "Less closeness, less chasing",
+        result: "You stop treating change as proof that something has gone wrong.",
+        effects: [{ type: "development", key: "emotionalRegulation", delta: 2 }, { type: "relationship", targetId: friend?.id, key: "closeness", delta: -1 }],
+      },
     ],
   }, friend);
 }
@@ -399,9 +516,24 @@ function familySqueezeStartEvent(state, item) {
     challengeType: item.type,
     challengePersonId: adult?.id || null,
     choices: [
-      { id: "ask", label: `Ask ${name} what is happening`, cost: 1, chance: 0.72, risk: "social", tradeoff: "You may hear things that worry you", result: "You ask for information instead of trying to reconstruct the household budget from whispers.", successResult: `${name} gives you an age-appropriate version of the truth. It is worrying, but less frightening than not knowing.`, failureResult: `${name} says not to worry about adult problems. The reassurance does not answer much.`, successEffects: [{ type: "relationship", targetId: adult?.id, key: "trust", delta: 3 }], failureEffects: [{ type: "health", key: "stress", delta: 2 }] },
-      { id: "help", label: "Start cutting your own extras", cost: 1, tradeoff: "Helpful, but you may take on too much responsibility", result: "You start saying no to small things before anybody asks you to.", effects: [{ type: "development", key: "autonomy", delta: 2 }, { type: "health", key: "stress", delta: 2 }] },
-      { id: "stay-out", label: "Try not to think about it", cost: 0, tradeoff: "Protects you now, uncertainty remains", result: "You let the adults handle the adult problem, although the atmosphere still reaches you.", effects: [{ type: "health", key: "stress", delta: 1 }] },
+      {
+        id: "ask", label: `Ask ${name} what is happening`, cost: 1, chance: 0.72, risk: "social", tradeoff: "You may hear things that worry you",
+        result: "You ask for information instead of trying to reconstruct the household budget from whispers.",
+        successResult: `${name} gives you an age-appropriate version of the truth. It is worrying, but less frightening than not knowing.`,
+        failureResult: `${name} says not to worry about adult problems. The reassurance does not answer much.`,
+        successEffects: [{ type: "relationship", targetId: adult?.id, key: "trust", delta: 3 }],
+        failureEffects: [{ type: "health", key: "stress", delta: 2 }],
+      },
+      {
+        id: "help", label: "Start cutting your own extras", cost: 1, tradeoff: "Helpful, but you may take on too much responsibility",
+        result: "You start saying no to small things before anybody asks you to.",
+        effects: [{ type: "development", key: "autonomy", delta: 2 }, { type: "health", key: "stress", delta: 2 }],
+      },
+      {
+        id: "stay-out", label: "Try not to think about it", cost: 0, tradeoff: "Protects you now, uncertainty remains",
+        result: "You let the adults handle the adult problem, although the atmosphere still reaches you.",
+        effects: [{ type: "health", key: "stress", delta: 1 }],
+      },
     ],
   }, adult);
 }
@@ -418,8 +550,19 @@ function familySqueezeFollowupEvent(state, item) {
     challengeType: item.type,
     challengeArcId: item.arcId,
     choices: [
-      { id: "ask", label: "Ask anyway", cost: 1, chance: 0.46, risk: "mixed", tradeoff: "You may hear no", result: "You decide that being part of a struggling household does not require becoming invisible inside it.", successResult: "The adults find a smaller way to make it work. You get some of what you wanted without pretending the cost is nothing.", failureResult: "The answer is no. It hurts, but at least the decision belongs to the adults instead of to your fear of asking.", successEffects: [{ type: "development", key: "confidence", delta: 2 }, { type: "householdSavings", delta: -700 }], failureEffects: [{ type: "health", key: "stress", delta: 1 }] },
-      { id: "wait", label: "Decide it can wait", cost: 0, tradeoff: "Protects money, postpones what you wanted", result: "You choose not to add another expense right now. The choice is practical, but practicality is not the same thing as not caring.", effects: [{ type: "development", key: "emotionalRegulation", delta: 1 }] },
+      {
+        id: "ask", label: "Ask anyway", cost: 1, chance: 0.46, risk: "mixed", tradeoff: "You may hear no",
+        result: "You decide that being part of a struggling household does not require becoming invisible inside it.",
+        successResult: "The adults find a smaller way to make it work. You get some of what you wanted without pretending the cost is nothing.",
+        failureResult: "The answer is no. It hurts, but at least the decision belongs to the adults instead of to your fear of asking.",
+        successEffects: [{ type: "development", key: "confidence", delta: 2 }, { type: "householdSavings", delta: -700 }],
+        failureEffects: [{ type: "health", key: "stress", delta: 1 }],
+      },
+      {
+        id: "wait", label: "Decide it can wait", cost: 0, tradeoff: "Protects money, postpones what you wanted",
+        result: "You choose not to add another expense right now. The choice is practical, but practicality is not the same thing as not caring.",
+        effects: [{ type: "development", key: "emotionalRegulation", delta: 1 }],
+      },
     ],
   });
 }
@@ -438,8 +581,7 @@ function buildEvent(state, item) {
 
 export function challengeEventForState(state) {
   ensureChallengeState(state);
-  const item = state.challenge.queue[0];
-  return buildEvent(state, item);
+  return buildEvent(state, state.challenge.queue[0]);
 }
 
 function adjust(target, key, delta) {
@@ -468,13 +610,23 @@ function specialConsequences(state, event, choice) {
   if (event.challengeType === "friend_uncertainty") {
     const friend = (state.people || []).find((person) => person.id === event.challengePersonId);
     const reason = pick(state, ["home", "other-friends", "upset"]);
-    const id = `friend-uncertainty:${friend?.id || "friend"}:${ageMonths(state)}`;
-    startArc(state, { id, type: "friend-uncertainty", personId: friend?.id || null, openingChoice: choice.id, reason, dueAtMonths: ageMonths(state) + between(state, 3, 6) });
+    startArc(state, {
+      id: `friend-uncertainty:${friend?.id || "friend"}:${ageMonths(state)}`,
+      type: "friend-uncertainty",
+      personId: friend?.id || null,
+      openingChoice: choice.id,
+      reason,
+      dueAtMonths: ageMonths(state) + between(state, 3, 6),
+    });
   }
   if (event.challengeType === "friend_reveal" && event.challengeArcId) completeArc(state, event.challengeArcId);
   if (event.challengeType === "family_squeeze_start") {
-    const id = `family-squeeze:${ageMonths(state)}`;
-    startArc(state, { id, type: "family-squeeze", openingChoice: choice.id, dueAtMonths: ageMonths(state) + between(state, 4, 8) });
+    startArc(state, {
+      id: `family-squeeze:${ageMonths(state)}`,
+      type: "family-squeeze",
+      openingChoice: choice.id,
+      dueAtMonths: ageMonths(state) + between(state, 4, 8),
+    });
     state.household.savings = Math.max(0, (state.household.savings || 0) - between(state, 900, 2400));
   }
   if (event.challengeType === "family_squeeze_followup" && event.challengeArcId) completeArc(state, event.challengeArcId);
@@ -544,9 +696,9 @@ export function advanceChallengeWorld(state, elapsedMonths = 0) {
   refreshGoals(state);
   queueDueArcFollowups(state);
   scheduleNextChallenge(state);
+
   if (ageMonths(state) >= 156 && !state.challenge.completedGoals) {
-    const remaining = state.challenge.goals || [];
-    for (const goal of remaining) {
+    for (const goal of state.challenge.goals || []) {
       const progress = progressForGoal(state, goal);
       recordGoalResult(state, goal, progress, progress >= goal.target);
     }
