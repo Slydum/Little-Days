@@ -3,6 +3,7 @@ import { advanceRealism, ensureRealismState } from "./realism.js?v=24";
 import { contextualEventForState } from "./contextual-events.js?v=24";
 import { syncHouseholdMembership } from "./household-membership.js?v=24";
 import { advanceChildhoodWorld, ensureChildhoodState } from "./childhood-v2.js?v=24";
+import { challengeMayPresent } from "./challenge-priority.js?v=1";
 import {
   advanceChallengeWorld,
   challengeEventForState,
@@ -102,6 +103,7 @@ function signature(state, event, snapshot) {
     state.character.ageMonths,
     state.resolution?.choiceId || "",
     state.resolution?.result || "",
+    state.resolution?.challengeEventId || state.resolution?.childhoodEventId || (state.resolution ? "other-resolution" : ""),
     event?.id || "",
     snapshot.capacity,
     snapshot.goals.map((goal) => `${goal.id}:${goal.progress}:${goal.status}`).join("|"),
@@ -144,7 +146,7 @@ function applyChallengeUI(force = false) {
 
   const snapshot = challengeSnapshot(state);
   const urgent = urgentContextExists(state);
-  const event = state.resolution?.challengeEvent || (!urgent ? challengeEventForState(state) : null);
+  const event = state.resolution?.challengeEvent || (challengeMayPresent(state, urgent) ? challengeEventForState(state) : null);
   const sig = signature(state, event, snapshot);
   const existing = screen.querySelector("#challenge-layer-panel");
   if (!force && existing && existing.dataset.signature === sig) return;
@@ -196,7 +198,7 @@ function installStyles() {
     .challenge-rule{height:1px;background:var(--line);margin:17px 0}
     .challenge-event .challenge-prompt{font-weight:700;font-size:12px;margin-bottom:10px}
     .challenge-choices{display:grid;gap:8px}
-    .challenge-choice{-webkit-appearance:none;appearance:none;width:100%;border:1px solid var(--line-strong);border-radius:11px;background:transparent;color:var(--ink);text-align:left;padding:12px 13px;font:inherit;cursor:pointer}
+    .challenge-choice{-webkit-appearance:none;appearance:none;width:100%;border:1px solid var(--line-strong);border-radius:11px;background:transparent;color:var(--ink);text-align:left;padding:12px 13px;font:inherit;cursor:pointer;touch-action:manipulation}
     .challenge-choice span{display:block;font-size:12px;font-weight:650;line-height:1.3}
     .challenge-choice small{display:block;color:var(--muted);font-size:9px;line-height:1.35;margin-top:4px}
     .challenge-choice.selected{background:rgba(113,129,105,.1);border-color:var(--sage)}
@@ -204,7 +206,7 @@ function installStyles() {
     .challenge-result{margin-top:12px;border-left:2px solid var(--line-strong);padding:10px 12px;background:rgba(255,255,255,.3);font-size:12px;line-height:1.5}
     .challenge-result.success{border-left-color:var(--sage)}
     .challenge-result.failure{border-left-color:#947465}
-    .challenge-continue{-webkit-appearance:none;appearance:none;width:100%;margin-top:11px;border:0;border-radius:10px;background:var(--ink);color:var(--paper,#f7f2e8);padding:12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+    .challenge-continue{-webkit-appearance:none;appearance:none;width:100%;margin-top:11px;border:0;border-radius:10px;background:var(--ink);color:var(--paper,#f7f2e8);padding:12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation}
   `;
   document.head.appendChild(style);
 }

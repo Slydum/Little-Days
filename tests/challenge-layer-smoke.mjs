@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { challengeMayPresent } from "../game/challenge-priority.js";
 import {
   advanceChallengeWorld,
   challengeEventForState,
@@ -56,6 +57,7 @@ ensureChallengeState(state);
 const snapshot = challengeSnapshot(state);
 assert.equal(snapshot.goals.length >= 2, true, "school-age life should have active goals");
 assert.equal(snapshot.capacity, 6, "capacity should initialize at six");
+assert.equal(challengeMayPresent(state, false), true, "challenge may appear when no other event is awaiting continuation");
 
 const event = challengeEventForState(state);
 assert.ok(event, "a due school-age challenge should be queued");
@@ -63,8 +65,14 @@ assert.equal(event.choices.length >= 2, true, "challenge should force a real cho
 const enabled = event.choices.find((choice) => !choice.disabled);
 assert.ok(enabled, "every challenge needs at least one playable choice");
 
+state.resolution = { choiceId: "ordinary-choice", result: "An ordinary event is waiting for Continue." };
+assert.equal(challengeMayPresent(state, false), false, "challenge must not cover an unresolved ordinary event");
+assert.equal(challengeMayPresent(state, true), false, "urgent context also blocks a fresh challenge");
+state.resolution = null;
+
 resolveChallengeChoice(state, enabled.id);
 assert.ok(state.resolution?.challengeEventId, "challenge choice should create a challenge resolution");
+assert.equal(challengeMayPresent(state, true), true, "an already-resolved challenge remains visible so its Continue button can be used");
 assert.equal(state.history.at(-1)?.continuity, "challenge-layer");
 assert.equal(state.challenge.capacity <= 6, true, "choices can spend capacity");
 
