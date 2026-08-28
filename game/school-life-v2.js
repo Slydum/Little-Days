@@ -5,7 +5,7 @@ export {
   schoolLifeSnapshot,
   schoolModeIsConventional,
   switchEducationMode,
-} from "./school-life-v2-core.js?v=1";
+} from "./school-life-v2-core-v2.js?v=1";
 export {
   adaptLegacySchoolEvent,
   commitSchoolLifeV2Event,
