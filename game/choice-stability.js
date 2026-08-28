@@ -68,19 +68,15 @@
   async function findDisplayedEvent(state, choiceId) {
     const prompt = visiblePrompt();
     if (!prompt) return null;
-    const childhood = await import("./childhood-v12.js?v=2");
+    const lifeStages = await import("./life-stages-v1.js?v=2");
 
-    // First try the event the current state considers active.
     try {
-      const current = childhood.childhoodEventForState(clone(state));
+      const current = lifeStages.childhoodEventForState(clone(state));
       if (eventMatches(current, prompt, choiceId)) return current;
     } catch {
-      // Keep looking. The whole point of this file is surviving stale state.
+      // Keep looking. The visible DOM is the question the player actually answered.
     }
 
-    // The visible card may have been rendered from an event that was pushed behind
-    // another queue item a moment later. Search every queued childhood event instead
-    // of pretending the first item is the only event the player could have seen.
     const queue = state.childhood?.eventQueue || [];
     for (let index = 0; index < queue.length; index += 1) {
       try {
@@ -88,16 +84,13 @@
         probe.resolution = null;
         const candidate = clone(queue[index]);
         probe.childhood.eventQueue = [candidate, ...probe.childhood.eventQueue.filter((_, itemIndex) => itemIndex !== index)];
-        const event = childhood.childhoodEventForState(probe);
+        const event = lifeStages.childhoodEventForState(probe);
         if (eventMatches(event, prompt, choiceId)) return event;
       } catch {
-        // One malformed background event should not make the visible button inert.
+        // Ignore one malformed background item and keep searching.
       }
     }
 
-    // Existing saves can contain the preschool transition after another migration has
-    // already removed its queue record. This is the exact card that was trapping age 3.
-    // Preserve its real effects/result and mark the transition seen so it cannot loop.
     const fallback = preschoolEvent();
     return eventMatches(fallback, prompt, choiceId) ? fallback : null;
   }
@@ -131,7 +124,7 @@
       next.textContent = "Continue";
       result.insertAdjacentElement("afterend", next);
     }
-    next.dataset.stabilityContinue = "1";
+    next.dataset.stabilityContinue = "2";
   }
 
   async function resolveChildhoodButton(button) {
@@ -144,25 +137,20 @@
       let state = readState();
       if (!state) return;
 
-      // A hidden stale resolution is not allowed to block a visibly unanswered card.
       if (state.resolution && !document.querySelector(".screen .result-card")) state.resolution = null;
       if (state.resolution) return;
 
       const choiceId = button.dataset.childhoodChoice;
       const displayedEvent = await findDisplayedEvent(state, choiceId);
       if (!displayedEvent) {
-        // Let the screen rebuild rather than leaving a button that appears tappable but
-        // silently eats taps.
         window.dispatchEvent(new HashChangeEvent("hashchange"));
         return;
       }
 
-      const resolver = await import("./childhood-v10-resolve.js?v=5");
+      const resolver = await import("./life-stages-resolve-v1.js?v=2");
       resolver.resolveChildhoodChoice(state, choiceId, displayedEvent);
 
       if (!state.resolution) {
-        // Last defensive pass for migrated saves: resolve from a clean copy of the same
-        // saved state while keeping the exact visible event authoritative.
         const fallback = readState();
         if (fallback) {
           fallback.resolution = null;
@@ -189,9 +177,9 @@
       let state = readState();
       if (!state?.resolution) return;
 
-      const [engine, childhood, realism, membership] = await Promise.all([
-        import("./engine-v31.js?v=2"),
-        import("./childhood-v12.js?v=2"),
+      const [engine, lifeStages, realism, membership] = await Promise.all([
+        import("./engine-v32.js?v=2"),
+        import("./life-stages-v1.js?v=2"),
         import("./realism-v5.js?v=2"),
         import("./household-membership.js?v=24"),
       ]);
@@ -199,12 +187,11 @@
       const before = Number(state.character.ageMonths) || 0;
       engine.continueLife(state);
       const elapsed = Math.max(0, (Number(state.character.ageMonths) || 0) - before);
-      childhood.advanceChildhoodWorld(state, elapsed, before);
+      lifeStages.advanceChildhoodWorld(state, elapsed, before);
       realism.advanceRealism(state, elapsed, before);
       membership.syncHouseholdMembership(state);
       writeState(state);
       window.dispatchEvent(new HashChangeEvent("hashchange"));
-      window.scrollTo({ top: Math.max(0, window.scrollY - 1), behavior: "auto" });
     } catch (error) {
       console.error("Little Days stable continue failed", error);
       button.disabled = false;
@@ -222,7 +209,7 @@
       return;
     }
 
-    const continueButton = event.target.closest?.(".screen #continue-life[data-stability-continue='1']");
+    const continueButton = event.target.closest?.(".screen #continue-life[data-stability-continue='2']");
     if (continueButton) {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -230,5 +217,5 @@
     }
   }, true);
 
-  document.documentElement.dataset.choiceStability = "1";
+  document.documentElement.dataset.choiceStability = "2";
 })();
