@@ -60,6 +60,8 @@ jobs:
           node --check game/psychology-phase3-loader.js
           node --check game/childhood-summary.js
           node --check game/childhood-summary-loader.js
+          node --check game/challenge-layer.js
+          node --check game/challenge-ui.js
           node --check tests/realism-smoke.mjs
           node --check tests/illness-coherence-smoke.mjs
           node --check tests/contextual-events-smoke.mjs
@@ -78,6 +80,7 @@ jobs:
           node --check tests/childhood-summary-smoke.mjs
           node --check tests/childhood-depth-pacing-smoke.mjs
           node --check tests/friendship-discovery-smoke.mjs
+          node --check tests/challenge-layer-smoke.mjs
       - name: Smoke test living household
         run: node tests/realism-smoke.mjs
       - name: Smoke test illness and school coherence
@@ -112,5 +115,7 @@ jobs:
         run: node tests/childhood-depth-pacing-smoke.mjs
       - name: Smoke test friendship discovery
         run: node tests/friendship-discovery-smoke.mjs
+      - name: Smoke test challenge gameplay layer
+        run: node tests/challenge-layer-smoke.mjs
       - name: Simulate 100 school-age lives
         run: node tests/school-social-100-life.mjs
