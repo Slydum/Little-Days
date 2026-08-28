@@ -22,6 +22,7 @@ import {
 import { resolveChildhoodChoice } from "./childhood-v2-resolve.js?v=24";
 
 const STORAGE_KEY = "little-days-save-v2";
+let displayedEventInfo = null;
 
 function readState() {
   try {
@@ -70,6 +71,32 @@ function choiceAttribute(kind) {
   if (kind === "childhood") return "data-childhood-choice";
   if (kind === "context") return "data-context-choice";
   return "data-choice";
+}
+
+function buttonChoiceId(button) {
+  return button?.dataset?.childhoodChoice || button?.dataset?.contextChoice || button?.dataset?.choice || null;
+}
+
+function rememberRenderedEvent(state) {
+  if (route() !== "life" || !state || state.resolution) return;
+  const choices = [...document.querySelectorAll(".screen .choices .choice-button")];
+  if (!choices.length) return;
+
+  const info = eventInfo(state);
+  const eventChoices = info.event?.choices || [];
+  const domIds = choices.map(buttonChoiceId);
+  const eventIds = eventChoices.map((choice) => choice.id);
+
+  // Only remember the event if it actually matches what is on screen. This is the
+  // important bit: background systems are allowed to update state, but a tap must
+  // still resolve the question the player can see rather than a newer hidden one.
+  if (domIds.length !== eventIds.length || domIds.some((id, index) => id !== eventIds[index])) return;
+
+  displayedEventInfo = {
+    event: info.event,
+    kind: info.kind,
+    ageMonths: state.character?.ageMonths ?? null,
+  };
 }
 
 function eventAnchor() {
@@ -139,6 +166,11 @@ function patchPrompt(state) {
 
   removeResolutionUi();
   renderChoices(event, kind);
+  displayedEventInfo = {
+    event,
+    kind,
+    ageMonths: state.character?.ageMonths ?? null,
+  };
   restoreAnchor(anchor);
 }
 
@@ -148,7 +180,7 @@ function showResolution(state, clickedButton) {
   const selected = state.resolution.choiceId;
 
   choices.querySelectorAll(".choice-button").forEach((button) => {
-    const id = button.dataset.childhoodChoice || button.dataset.contextChoice || button.dataset.choice;
+    const id = buttonChoiceId(button);
     const isSelected = id === selected;
     button.disabled = true;
     button.classList.toggle("primary", isSelected);
@@ -177,13 +209,26 @@ function resolveFromButton(button) {
   const state = readState();
   if (!state || state.resolution || button.disabled) return;
 
+  const rendered = displayedEventInfo?.ageMonths === state.character?.ageMonths
+    ? displayedEventInfo
+    : null;
+
   if (button.dataset.childhoodChoice) {
-    resolveChildhoodChoice(state, button.dataset.childhoodChoice);
+    const displayedChildhoodEvent = rendered?.kind === "childhood" ? rendered.event : null;
+    resolveChildhoodChoice(state, button.dataset.childhoodChoice, displayedChildhoodEvent);
   } else if (button.dataset.contextChoice) {
     resolveContextualChoice(state, button.dataset.contextChoice);
   } else if (button.dataset.choice) {
     resolveChoice(state, button.dataset.choice);
   } else {
+    return;
+  }
+
+  // If a background system really did invalidate the visible question, do not eat
+  // the tap and leave a dead-looking button. Replace the stale prompt with the real
+  // current one so the next action is unambiguous.
+  if (!state.resolution) {
+    patchPrompt(state);
     return;
   }
 
@@ -210,9 +255,9 @@ function interceptLifeClicks(event) {
   const target = event.target.closest?.("#continue-life,[data-childhood-choice],[data-context-choice],[data-choice]");
   if (!target) return;
 
-  // The original app attaches per-button listeners that rebuild the entire app.
-  // Capture first, handle the same state transition here, and keep the existing
-  // page/nav mounted instead. Humanity survives another DOM replacement.
+  // Keep the life screen mounted between prompts, but resolve the event the player
+  // actually saw. State can evolve behind the scenes; invisible questions do not get
+  // to steal clicks from visible ones. Civilization advances by several millimeters.
   event.preventDefault();
   event.stopImmediatePropagation();
 
@@ -220,4 +265,19 @@ function interceptLifeClicks(event) {
   else resolveFromButton(target);
 }
 
+function watchRenderedPrompt() {
+  const root = document.querySelector("#app");
+  if (!root) return;
+
+  const capture = () => {
+    const state = readState();
+    if (state) rememberRenderedEvent(state);
+  };
+
+  capture();
+  const observer = new MutationObserver(capture);
+  observer.observe(root, { childList: true, subtree: true });
+}
+
 document.addEventListener("click", interceptLifeClicks, true);
+watchRenderedPrompt();
