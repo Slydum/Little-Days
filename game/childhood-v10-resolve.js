@@ -57,18 +57,13 @@ function continuityKind(event) {
   return "childhood-v10";
 }
 
-function validDisplayedEvent(state, choiceId, eventOverride) {
+function validDisplayedEvent(choiceId, eventOverride) {
   if (!eventOverride || !Array.isArray(eventOverride.choices)) return null;
   if (!eventOverride.choices.some((item) => item.id === choiceId)) return null;
 
-  // Queue-backed events are only safe to resolve while the same queue item still exists.
-  // Higher-priority systems can change which event is "current" between render and tap,
-  // but they should not invalidate the event the player is already looking at.
-  if (eventOverride.childhoodQueueKey) {
-    const stillQueued = (state.childhood?.eventQueue || []).some((item) => item.key === eventOverride.childhoodQueueKey);
-    if (!stillQueued) return null;
-  }
-
+  // The visible prompt is authoritative. Background systems can reprioritize or even
+  // dequeue events while the old prompt is still mounted. Rejecting that old event is
+  // exactly what made perfectly normal-looking buttons do nothing on iOS.
   return eventOverride;
 }
 
@@ -76,7 +71,7 @@ export function resolveChildhoodChoice(state, choiceId, eventOverride = null) {
   ensureChildhoodState(state);
   if (state.resolution) return state;
 
-  const event = validDisplayedEvent(state, choiceId, eventOverride) || childhoodEventForState(state);
+  const event = validDisplayedEvent(choiceId, eventOverride) || childhoodEventForState(state);
   if (!event) return state;
   const choice = event.choices.find((item) => item.id === choiceId);
   if (!choice) return state;
